@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block content %}
+<h1>Overview</h1>
+
+<div class="cards">
+  <div class="card stat">
+    <span class="stat-value">{{ events|length }}</span>
+    <span class="stat-label">events</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-value">{{ groups|length }}</span>
+    <span class="stat-label">families &amp; groups</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-value">{{ groups|sum(attribute='size') }}</span>
+    <span class="stat-label">people</span>
+  </div>
+</div>
+
+<section>
+  <div class="section-head">
+    <h2>Events</h2>
+    <a class="btn" href="{{ url_for('web.events') }}">Manage events</a>
+  </div>
+  {% if events %}
+    <table>
+      <thead><tr><th>Event</th><th>When</th><th>Invited</th><th>Attending</th></tr></thead>
+      <tbody>
+      {% for event in events %}
+        <tr>
+          <td><a href="{{ url_for('web.event_detail', event_id=event.id) }}">{{ event.name }}</a></td>
+          <td>{{ event.starts_at.strftime('%d %b %Y, %H:%M') if event.starts_at else '—' }}</td>
+          <td>{{ event.counts()['invited'] }}</td>
+          <td>{{ event.counts()['attending'] }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">No events yet. <a href="{{ url_for('web.events') }}">Create one</a>.</p>
+  {% endif %}
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>Families &amp; groups</h2>
+    <a class="btn" href="{{ url_for('web.groups') }}">Manage groups</a>
+  </div>
+  {% if groups %}
+    <ul class="tiles">
+      {% for group in groups %}
+        <li class="tile">
+          <a href="{{ url_for('web.group_detail', group_id=group.id) }}">{{ group.name }}</a>
+          <span class="muted">{{ group.size }} {{ 'person' if group.size == 1 else 'people' }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty">No families or groups yet. <a href="{{ url_for('web.groups') }}">Add one</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

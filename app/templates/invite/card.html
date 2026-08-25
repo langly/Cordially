@@ -1,0 +1,191 @@
+{% extends "invite/base.html" %}
+{% block title %}{{ event.name }} — invitation for {{ group.name }}{% endblock %}
+
+{% block content %}
+<article class="card">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for category, message in messages %}
+          <li class="flash flash-{{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <header class="card-head">
+    <p class="flourish">&#10022;</p>
+    <p class="kicker">You&rsquo;re invited</p>
+    <h1>{{ event.name }}</h1>
+
+    <dl class="details">
+      {% if event.starts_at %}
+        <div>
+          <dt>When</dt>
+          <dd>
+            {{ event.starts_at.strftime('%A, %-d %B %Y') }}<br>
+            <span class="time">
+              {{ event.starts_at.strftime('%H:%M') }}
+              {%- if event.ends_at %} &ndash; {{ event.ends_at.strftime('%H:%M') }}{% endif %}
+            </span>
+          </dd>
+        </div>
+      {% endif %}
+      {% if event.location %}
+        <div><dt>Where</dt><dd>{{ event.location }}</dd></div>
+      {% endif %}
+    </dl>
+
+    {% if event.description %}
+      <p class="lede">{{ event.description }}</p>
+    {% endif %}
+  </header>
+
+  <div class="rule"></div>
+
+  <section class="addressed">
+    <p class="kicker">This invitation is for</p>
+    <h2>{{ group.name }}</h2>
+    <p class="names">
+      {% for member in members %}{{ member.full_name }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+    </p>
+    {% if restricted %}
+      <p class="hint">
+        One reply covers everyone above &mdash; whoever answers first answers for
+        the whole {{ 'family' if group.kind == 'family' else 'group' }}.
+      </p>
+    {% else %}
+      <p class="hint">
+        Bring who you like &mdash; just tell us how many are coming. One reply
+        covers the whole {{ 'family' if group.kind == 'family' else 'group' }}.
+      </p>
+    {% endif %}
+  </section>
+
+  {% if link.has_response and group_status %}
+    <div class="status status-{{ group_status }}">
+      {% if group_status == 'yes' %}
+        <strong>You&rsquo;re coming.</strong>
+      {% elif group_status == 'no' %}
+        <strong>You&rsquo;ve declined.</strong>
+      {% elif group_status == 'maybe' %}
+        <strong>You&rsquo;ve replied &ldquo;maybe&rdquo;.</strong>
+      {% else %}
+        <strong>Awaiting your reply.</strong>
+      {% endif %}
+      {% if not restricted and link.has_headcount and group_status == 'yes' %}
+        <span class="headcount-said">
+          {{ link.adults_attending or 0 }} adult{{ '' if link.adults_attending == 1 else 's' }}
+          and {{ link.children_attending or 0 }}
+          {{ 'child' if link.children_attending == 1 else 'children' }}
+        </span>
+      {% endif %}
+      {% if link.responded_by %}
+        <span>Answered by {{ link.responded_by }}</span>
+      {% endif %}
+      {% if link.responded_at %}
+        <span>on {{ link.responded_at.strftime('%-d %B') }}</span>
+      {% endif %}
+      &mdash; you can change this below.
+    </div>
+  {% elif mixed %}
+    <div class="status status-mixed">
+      <strong>Your group has mixed replies.</strong>
+      Answering below will set the same reply for everyone.
+    </div>
+  {% endif %}
+
+  <section class="respond">
+    <h2 class="respond-title">{{ 'Change your reply' if link.has_response else 'Will you join us?' }}</h2>
+
+    <form method="post" action="{{ url_for('invite.respond', token=link.token) }}">
+      <div class="field">
+        <label for="responded_by">Your name</label>
+        <input id="responded_by" name="responded_by" maxlength="120"
+               value="{{ link.responded_by or '' }}" placeholder="Who's replying?">
+      </div>
+
+      <div class="field">
+        <label for="note">A note for the host <span class="optional">optional</span></label>
+        <textarea id="note" name="note" rows="3"
+                  placeholder="Anything we should know — allergies, timing, what you'll bring…">{{ link.response_note or '' }}</textarea>
+      </div>
+
+      {% if not restricted %}
+        <fieldset class="headcount">
+          <legend>How many of you are coming?</legend>
+          <p class="hint">No names needed &mdash; numbers are enough.</p>
+          <div class="headcount-fields">
+            <label>
+              Adults
+              <input name="adults_attending" type="number" min="0" max="500" inputmode="numeric"
+                     value="{{ link.adults_attending if link.adults_attending is not none else '' }}"
+                     placeholder="0">
+            </label>
+            <label>
+              Children
+              <input name="children_attending" type="number" min="0" max="500" inputmode="numeric"
+                     value="{{ link.children_attending if link.children_attending is not none else '' }}"
+                     placeholder="0">
+            </label>
+          </div>
+        </fieldset>
+      {% endif %}
+
+      <div class="answers">
+        <button class="answer answer-yes {{ 'is-active' if group_status == 'yes' }}"
+                name="rsvp" value="yes" type="submit">
+          <span class="answer-main">Joyfully accept</span>
+          <span class="answer-sub">
+            {%- if restricted %}All {{ members|length }} of us{% else %}We'll be there{% endif -%}
+          </span>
+        </button>
+        <button class="answer answer-maybe {{ 'is-active' if group_status == 'maybe' }}"
+                name="rsvp" value="maybe" type="submit">
+          <span class="answer-main">Maybe</span>
+          <span class="answer-sub">We'll confirm later</span>
+        </button>
+        <button class="answer answer-no {{ 'is-active' if group_status == 'no' }}"
+                name="rsvp" value="no" type="submit">
+          <span class="answer-main">Regretfully decline</span>
+          <span class="answer-sub">We can't make it</span>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  {% if restricted and members|length > 1 %}
+    <details class="per-person" {{ 'open' if mixed }}>
+      <summary>Not everyone the same? Adjust individually</summary>
+      <p class="hint">Use this if one or two of you can&rsquo;t make it after all.</p>
+
+      {% for member in members %}
+        {% set inv = rsvps.get(member.id) %}
+        <form method="post" action="{{ url_for('invite.member_rsvp', token=link.token, member_id=member.id) }}"
+              class="person">
+          <div class="person-name">
+            {{ member.full_name }}
+            {% if member.is_child %}<span class="pill">child</span>{% endif %}
+          </div>
+          <div class="person-controls">
+            <input name="dietary_notes" value="{{ member.dietary_notes or '' }}"
+                   placeholder="Dietary needs" aria-label="Dietary needs for {{ member.full_name }}">
+            <div class="mini-answers">
+              {% for status in statuses %}
+                <button class="mini mini-{{ status }} {{ 'is-active' if inv and inv.rsvp == status }}"
+                        name="rsvp" value="{{ status }}" type="submit">{{ status }}</button>
+              {% endfor %}
+            </div>
+          </div>
+        </form>
+      {% endfor %}
+    </details>
+  {% endif %}
+
+  <footer class="card-foot">
+    <p class="flourish">&#10022;</p>
+    <p class="hint">Please share this link with everyone in {{ group.name }}.</p>
+  </footer>
+</article>
+{% endblock %}

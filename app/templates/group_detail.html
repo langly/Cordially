@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+<p class="crumb"><a href="{{ url_for('web.groups') }}">&larr; Families &amp; groups</a></p>
+
+<div class="section-head">
+  <h1>{{ group.name }} <span class="pill">{{ group.kind }}</span></h1>
+  <span class="muted">{{ group.size }} {{ 'person' if group.size == 1 else 'people' }}</span>
+</div>
+
+{% if group.contact_email or group.contact_phone or group.notes %}
+  <p class="muted">
+    {{ group.contact_email or '' }}
+    {%- if group.contact_email and group.contact_phone %} · {% endif -%}
+    {{ group.contact_phone or '' }}
+    {% if group.notes %}<br>{{ group.notes }}{% endif %}
+  </p>
+{% endif %}
+
+<section class="card">
+  <h2>Add a member</h2>
+  <form method="post" action="{{ url_for('web.add_member', group_id=group.id) }}" class="form-grid">
+    <label>First name
+      <input name="first_name" required>
+    </label>
+    <label>Last name
+      <input name="last_name" value="{{ group.name.replace('The ', '').replace(' Family', '') if group.kind == 'family' else '' }}">
+    </label>
+    <label>Email
+      <input name="email" type="email" placeholder="optional">
+    </label>
+    <label>Phone
+      <input name="phone" placeholder="optional">
+    </label>
+    <label>Age
+      <input name="age" type="number" min="0" max="130" placeholder="optional">
+    </label>
+    <label class="checkbox">
+      <input name="is_child" type="checkbox" value="1"> Child
+    </label>
+    <label class="wide">Dietary notes
+      <input name="dietary_notes" placeholder="e.g. vegetarian, nut allergy">
+    </label>
+    <div class="wide"><button class="btn btn-primary" type="submit">Add member</button></div>
+  </form>
+</section>
+
+<section>
+  <h2>Members</h2>
+  {% if group.members %}
+    <table>
+      <thead><tr><th>Name</th><th>Contact</th><th>Dietary</th><th>Move to</th><th></th></tr></thead>
+      <tbody>
+      {% for member in group.members %}
+        <tr>
+          <td>
+            {{ member.full_name }}
+            {% if member.is_child %}<span class="pill pill-soft">child</span>{% endif %}
+            {% if member.age is not none %}<span class="muted">({{ member.age }})</span>{% endif %}
+          </td>
+          <td class="muted">{{ member.email or member.phone or '—' }}</td>
+          <td class="muted">{{ member.dietary_notes or '—' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('web.move_member', member_id=member.id) }}" class="inline">
+              <select name="group_id">
+                <option value="">— no group —</option>
+                {% for g in all_groups %}
+                  <option value="{{ g.id }}" {{ 'selected' if g.id == member.group_id }}>{{ g.name }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn" type="submit">Move</button>
+            </form>
+          </td>
+          <td class="right">
+            <form method="post" action="{{ url_for('web.delete_member', member_id=member.id) }}"
+                  onsubmit="return confirm('Remove {{ member.full_name }}?');">
+              <button class="btn btn-danger" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">No members yet — add the first one above.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "invite/base.html" %}
+{% block title %}Invitation unavailable{% endblock %}
+
+{% block content %}
+<article class="card card-plain">
+  <p class="flourish">&#10022;</p>
+  {% if reason == "revoked" %}
+    <h1>This invitation has been withdrawn</h1>
+    <p class="lede">The link is no longer active. If you think that's a mistake,
+       check with whoever sent it to you for an updated link.</p>
+  {% elif reason == "empty" %}
+    <h1>Nothing to respond to yet</h1>
+    <p class="lede">There's nobody listed on this invitation at the moment.
+       Check back once the host has finished setting it up.</p>
+  {% else %}
+    <h1>We couldn't find this invitation</h1>
+    <p class="lede">The link may have been mistyped or replaced with a new one.
+       Ask the host to send it again.</p>
+  {% endif %}
+</article>
+{% endblock %}

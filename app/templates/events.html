@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Events{% endblock %}
+
+{% block content %}
+<h1>Events</h1>
+
+<section class="card">
+  <h2>Create an event</h2>
+  <form method="post" action="{{ url_for('web.create_event') }}" class="form-grid">
+    <label>Name
+      <input name="name" required placeholder="Summer BBQ">
+    </label>
+    <label>Location
+      <input name="location" placeholder="optional">
+    </label>
+    <label>Starts
+      <input name="starts_at" type="datetime-local">
+    </label>
+    <label>Ends
+      <input name="ends_at" type="datetime-local">
+    </label>
+    <label>Capacity
+      <input name="capacity" type="number" min="1" placeholder="optional">
+    </label>
+    <label class="wide">Description
+      <textarea name="description" rows="2" placeholder="optional"></textarea>
+    </label>
+    <div class="wide"><button class="btn btn-primary" type="submit">Create event</button></div>
+  </form>
+</section>
+
+<section>
+  <h2>{{ events|length }} event{{ '' if events|length == 1 else 's' }}</h2>
+  {% if events %}
+    <table>
+      <thead><tr><th>Event</th><th>When</th><th>Where</th><th>Invited</th><th>Yes</th><th>Attending</th><th></th></tr></thead>
+      <tbody>
+      {% for event in events %}
+        {% set c = event.counts() %}
+        <tr>
+          <td><a href="{{ url_for('web.event_detail', event_id=event.id) }}">{{ event.name }}</a></td>
+          <td>{{ event.starts_at.strftime('%d %b %Y, %H:%M') if event.starts_at else '—' }}</td>
+          <td class="muted">{{ event.location or '—' }}</td>
+          <td>{{ c['invited'] }}</td>
+          <td>{{ c['yes'] }}</td>
+          <td>
+            {{ c['attending'] }}{% if event.capacity %} <span class="muted">/ {{ event.capacity }}</span>{% endif %}
+          </td>
+          <td class="right">
+            <form method="post" action="{{ url_for('web.delete_event', event_id=event.id) }}"
+                  onsubmit="return confirm('Delete {{ event.name }}?');">
+              <button class="btn btn-danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">No events yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

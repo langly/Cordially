@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Families &amp; groups{% endblock %}
+
+{% block content %}
+<h1>Families &amp; groups</h1>
+
+<section class="card">
+  <h2>Add a family or group</h2>
+  <form method="post" action="{{ url_for('web.create_group') }}" class="form-grid">
+    <label>Name
+      <input name="name" required placeholder="The Smith Family">
+    </label>
+    <label>Kind
+      <select name="kind">
+        {% for kind in kinds %}<option value="{{ kind }}">{{ kind|capitalize }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Contact email
+      <input name="contact_email" type="email" placeholder="optional">
+    </label>
+    <label>Contact phone
+      <input name="contact_phone" placeholder="optional">
+    </label>
+    <label class="wide">Notes
+      <textarea name="notes" rows="2" placeholder="optional"></textarea>
+    </label>
+    <div class="wide"><button class="btn btn-primary" type="submit">Add group</button></div>
+  </form>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>{{ groups|length }} group{{ '' if groups|length == 1 else 's' }}</h2>
+    <form method="get" class="inline">
+      <input name="q" value="{{ q }}" placeholder="Search by name">
+      <button class="btn" type="submit">Search</button>
+    </form>
+  </div>
+
+  {% if groups %}
+    <table>
+      <thead><tr><th>Name</th><th>Kind</th><th>Members</th><th>Contact</th><th></th></tr></thead>
+      <tbody>
+      {% for group in groups %}
+        <tr>
+          <td><a href="{{ url_for('web.group_detail', group_id=group.id) }}">{{ group.name }}</a></td>
+          <td><span class="pill">{{ group.kind }}</span></td>
+          <td>{{ group.size }}</td>
+          <td class="muted">{{ group.contact_email or group.contact_phone or '—' }}</td>
+          <td class="right">
+            <form method="post" action="{{ url_for('web.delete_group', group_id=group.id) }}"
+                  onsubmit="return confirm('Delete {{ group.name }} and its {{ group.size }} member(s)?');">
+              <button class="btn btn-danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">No groups match.</p>
+  {% endif %}
+</section>
+{% endblock %}
