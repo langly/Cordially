@@ -8,3 +8,8 @@ instance/
 *.db-shm
 .pytest_cache/
 logs/
+
+# Editor swap files
+*.sw[nop]
+.*.sw[nop]
+*~
