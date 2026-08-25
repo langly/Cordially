@@ -11,6 +11,39 @@ answers for everyone — one accept means the whole family is coming.
 Runs on SQLite out of the box; moving to PostgreSQL or MySQL is a one-line
 config change (see [Changing the database](#changing-the-database)).
 
+## Logging
+
+Two streams, one rotating file (`logs/events.log`, 10 MB × 5 by default), also
+mirrored to stdout so a platform can capture it:
+
+- **`events.audit`** — a security trail of who did what: sign-ins and failures,
+  user create/modify/delete, co-host and ownership changes. Each line is
+  greppable `key=value`, recording actor and client IP:
+
+  ```
+  events.audit login.success actor=admin@example.com ip=203.0.113.7 admin=True
+  events.audit user.create actor=admin@example.com ip=… target=host@example.com admin=False
+  events.audit event.cohost.add actor=host@example.com ip=… event=2 target=other@example.com
+  ```
+
+  Isolate it with `grep events.audit logs/events.log`.
+
+- **`events.request`** — one line per request (method, path, status, timing,
+  user) plus any unhandled error with a traceback.
+
+Configure via env: `LOG_LEVEL`, `LOG_DIR`, `LOG_MAX_BYTES`, `LOG_BACKUPS`. A
+rotating file needs a persistent writable disk; on an ephemeral container host,
+rely on the stdout mirror and set `LOG_DIR` to a mounted volume if you want the
+file too.
+
+## Startup guard
+
+`app/startup.py` refuses to boot in production on insecure config — a default
+`SECRET_KEY` (forgeable sessions) or a test-grade password hash factor
+(`FLASK_ENV=testing` leaking in). Set `FLASK_DEBUG=1` for local development and
+these downgrade to a warning instead. This is why a real deploy **must** set
+`SECRET_KEY`.
+
 ## Accounts and access
 
 Hosts sign in; **guests never do** — RSVPs happen through the unauthenticated
@@ -298,7 +331,7 @@ curl -X POST localhost:5000/api/events/1/rsvp -H 'Content-Type: application/json
 .venv/bin/python -m pytest
 ```
 
-135 tests, running against an in-memory SQLite database — including every
+152 tests, running against an in-memory SQLite database — including every
 theme and layout rendering a real card, and a sweep asserting no route answers
 anonymously.
 

@@ -7,3 +7,4 @@ instance/
 *.db-wal
 *.db-shm
 .pytest_cache/
+logs/

@@ -163,6 +163,21 @@ Deleting a group deletes its members; deleting a member or an event deletes the
 related invitations. **Deleting an event never removes people.** Cascades are
 declared both on the relationship and as `ondelete=` on the FK.
 
+## Logging and startup
+
+- `app/logging_config.py` configures everything once (idempotent — the factory
+  may run several times). Two loggers: `events.audit` (security trail) and
+  `events.request` (one line per request + unhandled errors). Both go to a
+  rotating `logs/events.log` and stdout; tests get stdout only, no file.
+- **`app/audit.py`**: call `audit("action", event=…, target=…)` at security-
+  relevant mutations. The first arg is positional and named `action`, so an
+  `event=` field (an event id) does not collide with it. `audit` reads
+  `current_user` and the client IP defensively — it must work outside a request
+  (CLI) and for a failed login with no actor.
+- `app/startup.py` (`validate_config`) refuses to boot in production on a
+  default `SECRET_KEY` or a cost-factor-1 hash; `FLASK_DEBUG=1` or TESTING
+  downgrades to a warning. Called first in `create_app`.
+
 ## Notes
 
 - **Password hashing** picks scrypt when `hashlib` provides it and PBKDF2

@@ -17,9 +17,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'instance' / 'events.db'}"
 
+# Sentinel default. The startup guard refuses to boot in production while this
+# is still in force, because it lets anyone forge a session cookie.
+DEFAULT_SECRET_KEY = "dev-secret-change-me"
+
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    SECRET_KEY = os.environ.get("SECRET_KEY", DEFAULT_SECRET_KEY)
 
     # None means "use the strongest method this Python build supports"
     # (see app/models/user.py). Overridden in tests for speed.

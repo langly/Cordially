@@ -57,9 +57,63 @@ def _install_auth_guard(app: Flask) -> None:
         return redirect(url_for("auth.login", next=target))
 
 
+def _install_request_logging(app: Flask) -> None:
+    """Log one line per request, and any unhandled error with a traceback."""
+    import logging
+    import time
+
+    from flask import g, request
+    from flask_login import current_user
+
+    request_log = logging.getLogger("events.request")
+
+    @app.before_request
+    def _mark_start():
+        g._start_time = time.monotonic()
+
+    @app.after_request
+    def _log_request(response):
+        if request.endpoint == "static":
+            return response
+        elapsed_ms = (time.monotonic() - getattr(g, "_start_time", time.monotonic())) * 1000
+        try:
+            who = current_user.email if current_user.is_authenticated else "-"
+        except Exception:
+            who = "-"
+        request_log.info(
+            "%s %s %s %.0fms user=%s",
+            request.method,
+            request.full_path.rstrip("?"),
+            response.status_code,
+            elapsed_ms,
+            who,
+        )
+        return response
+
+    @app.errorhandler(Exception)
+    def _log_unhandled(error):
+        from werkzeug.exceptions import HTTPException
+
+        # Intentional HTTP responses (404, 403, ValueError->400) pass through;
+        # only genuine crashes are logged, then re-raised so Flask renders 500.
+        if isinstance(error, HTTPException):
+            return error
+        app.logger.exception("Unhandled exception on %s %s", request.method, request.path)
+        raise error
+
+
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(get_config(config_name))
+
+    from app.logging_config import init_logging
+
+    init_logging(app)
+
+    # Fail loud on insecure production config before wiring anything up.
+    from app.startup import validate_config
+
+    validate_config(app)
 
     os.makedirs(app.instance_path, exist_ok=True)
 
@@ -84,6 +138,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(web_bp)
 
     _install_auth_guard(app)
+    _install_request_logging(app)
 
     from app.cli import register_cli
 

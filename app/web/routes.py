@@ -8,6 +8,7 @@ from typing import Optional
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from app.audit import audit
 from app.authz import event_or_403
 from app.models import GroupKind, RsvpStatus
 from app.themes import (
@@ -405,6 +406,7 @@ def add_co_host(event_id: int):
     user = users_svc.get_user_or_404(_form_int("user_id") or 0)
     try:
         events_svc.add_co_host(event, user)
+        audit("event.cohost.add", event=event.id, target=user.email)
         flash(f"{user.display_name} can now manage this event.", "success")
     except ValueError as err:
         flash(str(err), "error")
@@ -416,6 +418,7 @@ def remove_co_host(event_id: int, user_id: int):
     event = event_or_403(event_id)
     user = users_svc.get_user_or_404(user_id)
     events_svc.remove_co_host(event, user)
+    audit("event.cohost.remove", event=event.id, target=user.email)
     flash(f"{user.display_name} no longer manages this event.", "success")
 
     # Removing yourself means losing access, so land somewhere you can still see.
@@ -434,6 +437,7 @@ def transfer_ownership(event_id: int, user_id: int):
     user = users_svc.get_user_or_404(user_id)
     try:
         events_svc.transfer_ownership(event, user)
+        audit("event.ownership.transfer", event=event.id, target=user.email)
         flash(f"{user.display_name} now owns this event.", "success")
     except ValueError as err:
         flash(str(err), "error")

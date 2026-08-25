@@ -9,6 +9,7 @@ from flask import jsonify, request
 from flask_login import current_user
 
 from app.api import api_bp
+from app.audit import audit
 from app.authz import admin_required, event_or_403
 from app.models import RsvpStatus
 from app.themes import DEFAULT_LAYOUT, DEFAULT_THEME
@@ -295,6 +296,7 @@ def create_user():
         name=data.get("name"),
         is_admin=bool(data.get("is_admin", False)),
     )
+    audit("user.create", target=user.email, admin=user.is_admin)
     return jsonify(user.to_dict()), 201
 
 
@@ -311,6 +313,7 @@ def update_user(user_id: int):
         is_active=data.get("is_active"),
         password=data.get("password"),
     )
+    audit("user.update", target=user.email, admin=user.is_admin, active=user.is_active)
     return jsonify(user.to_dict())
 
 
@@ -321,6 +324,7 @@ def delete_user(user_id: int):
     if user.id == current_user.id:
         return jsonify({"error": "You cannot delete your own account"}), 400
     users_svc.delete_user(user)
+    audit("user.delete", target=user.email)
     return "", 204
 
 
@@ -332,11 +336,14 @@ def add_co_host(event_id: int):
     data = request.get_json(silent=True) or {}
     user = users_svc.get_user_or_404(int(data.get("user_id", 0)))
     events_svc.add_co_host(event, user)
+    audit("event.cohost.add", event=event.id, target=user.email)
     return jsonify(event.to_dict()), 201
 
 
 @api_bp.delete("/events/<int:event_id>/hosts/<int:user_id>")
 def remove_co_host(event_id: int, user_id: int):
     event = event_or_403(event_id)
-    events_svc.remove_co_host(event, users_svc.get_user_or_404(user_id))
+    removed = users_svc.get_user_or_404(user_id)
+    events_svc.remove_co_host(event, removed)
+    audit("event.cohost.remove", event=event.id, target=removed.email)
     return "", 204

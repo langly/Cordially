@@ -6,6 +6,7 @@ from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app.admin import admin_bp
+from app.audit import audit
 from app.authz import admin_required
 from app.services import users as users_svc
 
@@ -30,6 +31,7 @@ def create_user():
             name=request.form.get("name"),
             is_admin=bool(request.form.get("is_admin")),
         )
+        audit("user.create", target=user.email, admin=user.is_admin)
         flash(f"Created {user.display_name}.", "success")
     except ValueError as err:
         flash(str(err), "error")
@@ -55,6 +57,7 @@ def update_user(user_id: int):
             is_active=is_active,
             password=request.form.get("password") or None,
         )
+        audit("user.update", target=user.email, admin=user.is_admin, active=user.is_active)
         flash(f"Updated {user.display_name}.", "success")
     except ValueError as err:
         flash(str(err), "error")
@@ -72,6 +75,7 @@ def delete_user(user_id: int):
     name = user.display_name
     try:
         users_svc.delete_user(user)
+        audit("user.delete", target=user.email)
         flash(f"Deleted {name}. Their events are now unowned.", "success")
     except ValueError as err:
         flash(str(err), "error")
