@@ -9,6 +9,7 @@ from flask import abort, flash, redirect, render_template, request, url_for
 from app.invite import invite_bp
 from app.models import RsvpStatus
 from app.services import invite_links as links_svc
+from app.themes import font_query_for
 
 
 def _count_field(field: str) -> Optional[int]:
@@ -25,6 +26,18 @@ def _count_field(field: str) -> Optional[int]:
     if value > 500:
         raise ValueError("That is more guests than we can take")
     return value
+
+
+def card_appearance(event) -> dict:
+    """Theme/layout context for the card templates.
+
+    Requests only this event's typeface, not all eight.
+    """
+    return {
+        "theme_name": event.theme.name,
+        "layout_name": event.layout.name,
+        "fonts_url": font_query_for(event.theme.name),
+    }
 
 
 def _load(token: str, for_response: bool = False):
@@ -75,6 +88,7 @@ def card(token: str):
         mixed=len(statuses) > 0,
         statuses=RsvpStatus.ALL,
         restricted=link.restricted,
+        **card_appearance(link.event),
     )
 
 

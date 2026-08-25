@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.extensions import db
 from app.models.mixins import TimestampMixin
 from app.models.types import UtcDateTime
+from app.themes import DEFAULT_LAYOUT, DEFAULT_THEME, get_layout, get_theme
 
 if TYPE_CHECKING:
     from app.models.invitation import Invitation
@@ -30,6 +31,16 @@ class Event(TimestampMixin, db.Model):
 
     capacity: Mapped[Optional[int]] = mapped_column(Integer)
 
+    # Appearance of this event's invitation cards. Stored as plain strings and
+    # resolved through app.themes, so adding or renaming a theme never needs a
+    # migration -- unknown names fall back to the default.
+    card_theme: Mapped[str] = mapped_column(
+        String(32), default=DEFAULT_THEME, server_default=DEFAULT_THEME, nullable=False
+    )
+    card_layout: Mapped[str] = mapped_column(
+        String(32), default=DEFAULT_LAYOUT, server_default=DEFAULT_LAYOUT, nullable=False
+    )
+
     invitations: Mapped[List["Invitation"]] = relationship(
         back_populates="event",
         cascade="all, delete-orphan",
@@ -40,6 +51,14 @@ class Event(TimestampMixin, db.Model):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    @property
+    def theme(self):
+        return get_theme(self.card_theme)
+
+    @property
+    def layout(self):
+        return get_layout(self.card_layout)
 
     def counts(self) -> dict:
         """RSVP tally for this event, split into adults and children.
@@ -101,6 +120,8 @@ class Event(TimestampMixin, db.Model):
             "starts_at": self.starts_at.isoformat() if self.starts_at else None,
             "ends_at": self.ends_at.isoformat() if self.ends_at else None,
             "capacity": self.capacity,
+            "card_theme": self.card_theme,
+            "card_layout": self.card_layout,
         }
         if include_counts:
             data["counts"] = self.counts()

@@ -9,6 +9,7 @@ from flask import jsonify, request
 
 from app.api import api_bp
 from app.models import RsvpStatus
+from app.themes import DEFAULT_LAYOUT, DEFAULT_THEME
 from app.services import events as events_svc
 from app.services import groups as groups_svc
 from app.services import invitations as invites_svc
@@ -132,6 +133,8 @@ def create_event():
         starts_at=_parse_dt(data.get("starts_at")),
         ends_at=_parse_dt(data.get("ends_at")),
         capacity=data.get("capacity"),
+        card_theme=data.get("card_theme", DEFAULT_THEME),
+        card_layout=data.get("card_layout", DEFAULT_LAYOUT),
     )
     return jsonify(event.to_dict()), 201
 

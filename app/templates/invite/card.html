@@ -2,6 +2,17 @@
 {% block title %}{{ event.name }} — invitation for {{ group.name }}{% endblock %}
 
 {% block content %}
+{% if preview %}
+  {# Comparing themes usually means several tabs open at once, so each says
+     which one it is. Never shown on a real invitation. #}
+  <div class="preview-bar">
+    <span class="preview-tag">Preview</span>
+    <strong>{{ preview_theme.label }}</strong> &middot; {{ preview_layout.label }} layout
+    <span class="preview-note">
+      sample guests &mdash; {{ 'this is the saved look' if preview_saved else 'not saved yet' }}
+    </span>
+  </div>
+{% endif %}
 <article class="card">
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -14,8 +25,9 @@
     {% endif %}
   {% endwith %}
 
+  <div class="pane-main">
   <header class="card-head">
-    <p class="flourish">&#10022;</p>
+    <p class="flourish"></p>
     <p class="kicker">You&rsquo;re invited</p>
     <h1>{{ event.name }}</h1>
 
@@ -62,7 +74,9 @@
       </p>
     {% endif %}
   </section>
+  </div>{# /pane-main #}
 
+  <div class="pane-side">
   {% if link.has_response and group_status %}
     <div class="status status-{{ group_status }}">
       {% if group_status == 'yes' %}
@@ -99,7 +113,8 @@
   <section class="respond">
     <h2 class="respond-title">{{ 'Change your reply' if link.has_response else 'Will you join us?' }}</h2>
 
-    <form method="post" action="{{ url_for('invite.respond', token=link.token) }}">
+    <form method="post" action="{{ url_for('invite.respond', token=link.token) }}"
+          {% if preview %}onsubmit="return false;"{% endif %}>
       <div class="field">
         <label for="responded_by">Your name</label>
         <input id="responded_by" name="responded_by" maxlength="120"
@@ -183,8 +198,10 @@
     </details>
   {% endif %}
 
+  </div>{# /pane-side #}
+
   <footer class="card-foot">
-    <p class="flourish">&#10022;</p>
+    <p class="flourish"></p>
     <p class="hint">Please share this link with everyone in {{ group.name }}.</p>
   </footer>
 </article>

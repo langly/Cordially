@@ -1,5 +1,14 @@
 {% extends "base.html" %}
+{% import "_appearance.html" as appearance %}
 {% block title %}Events{% endblock %}
+
+{% block head %}
+  {% if all_fonts_url %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="{{ all_fonts_url }}" rel="stylesheet">
+  {% endif %}
+{% endblock %}
 
 {% block content %}
 <h1>Events</h1>
@@ -25,6 +34,15 @@
     <label class="wide">Description
       <textarea name="description" rows="2" placeholder="optional"></textarea>
     </label>
+
+    <div class="wide">
+      <h3 class="picker-heading">Invitation card theme</h3>
+      {{ appearance.theme_grid(theme_groups, default_theme) }}
+
+      <h3 class="picker-heading">Card layout</h3>
+      {{ appearance.layout_grid(layouts, default_layout) }}
+    </div>
+
     <div class="wide"><button class="btn btn-primary" type="submit">Create event</button></div>
   </form>
 </section>

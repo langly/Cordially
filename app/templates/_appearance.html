@@ -1,0 +1,54 @@
+{# Theme and layout pickers, shared by the create form and the event page.
+   Each swatch is a miniature of the real card, drawn from the theme's own
+   colours and typeface, so the grid is a genuine preview rather than a list
+   of names. #}
+
+{% macro theme_grid(theme_groups, selected, name="card_theme") %}
+  {% for mood, themes in theme_groups %}
+    <p class="picker-mood">{{ mood }}</p>
+    <div class="picker-grid">
+      {% for theme in themes %}
+        <label class="swatch"
+               style="--sw-paper: {{ theme.paper }}; --sw-ink: {{ theme.ink }};
+                      --sw-accent: {{ theme.accent }}; --sw-edge: {{ theme.edge }};
+                      --sw-font: {{ theme.preview_font }};">
+          <input type="radio" name="{{ name }}" value="{{ theme.name }}"
+                 {{ 'checked' if theme.name == selected }}>
+          <span class="swatch-card">
+            <span class="swatch-orn"></span>
+            <span class="swatch-title">Summer BBQ</span>
+            <span class="swatch-rule"></span>
+            <span class="swatch-lines"><i></i><i></i></span>
+            <span class="swatch-btns"><b></b><b></b></span>
+          </span>
+          <span class="swatch-meta">
+            <span class="swatch-name">{{ theme.label }}</span>
+            <span class="swatch-desc">{{ theme.description }}</span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+  {% endfor %}
+{% endmacro %}
+
+{% macro layout_grid(layouts, selected, name="card_layout") %}
+  <div class="picker-grid picker-grid-layouts">
+    {% for layout in layouts %}
+      <label class="swatch swatch-layout">
+        <input type="radio" name="{{ name }}" value="{{ layout.name }}"
+               {{ 'checked' if layout.name == selected }}>
+        <span class="wire wire-{{ layout.name }}">
+          <i class="wire-band"></i>
+          <i class="wire-title"></i>
+          <i class="wire-line"></i>
+          <i class="wire-line short"></i>
+          <i class="wire-btns"></i>
+        </span>
+        <span class="swatch-meta">
+          <span class="swatch-name">{{ layout.label }}</span>
+          <span class="swatch-desc">{{ layout.description }}</span>
+        </span>
+      </label>
+    {% endfor %}
+  </div>
+{% endmacro %}

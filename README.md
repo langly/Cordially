@@ -41,7 +41,7 @@ Group  (a family, household, group of friends, company)
 |---|---|
 | `Group` | `name` (unique), `kind` (family/group/household/company), contact details, `notes` |
 | `Member` | `first_name`, `last_name`, `group_id`, contact details, `is_child`, `age`, `dietary_notes` |
-| `Event` | `name`, `starts_at`, `ends_at`, `location`, `capacity`, `description` |
+| `Event` | `name`, `starts_at`, `ends_at`, `location`, `capacity`, `description`, `card_theme`, `card_layout` |
 | `Invitation` | `rsvp` (pending/yes/no/maybe), `responded_at`, `plus_ones`, `table_assignment` |
 | `InviteLink` | `token`, `restricted`, `adults_attending`, `children_attending`, `revoked`, `responded_by`, `response_note`, `view_count` |
 
@@ -58,6 +58,49 @@ invitation with the event details, who it's addressed to, and the RSVP form.
 **One reply covers the group.** Whoever answers sets the RSVP for every member,
 which is the behaviour a shared family link needs — no per-person logins. The
 card collects a free-text note plus dietary needs for the host.
+
+### Themes and layouts
+
+Every event picks how its invitation cards look, along two independent axes —
+any theme works with any layout, so there are 32 combinations.
+
+**Themes** (palette + typeface), shown in a grid where each swatch is a
+miniature of the real card in its own colours and font:
+
+| Formal | | Cheerful | |
+|---|---|---|---|
+| **Classic Ivory** | ivory and gold, the traditional choice | **Garden Party** | fresh greens, daytime and outdoors |
+| **Midnight** | black tie, charcoal with antique gold | **Sunset** | warm coral and peach |
+| **Bloom** | soft rose, weddings and showers | **Confetti** | bright and playful, birthdays |
+| **Nordic** | clean and quiet, no ornament | **After Dark** | bold on black, late nights |
+
+**Layouts**: Centred (ornament, everything centred), Banner (colour band across
+the top), Split (details one side, RSVP the other), Minimal (left aligned and
+compact).
+
+Pick them when creating the event, or change them later under *Invitation card
+→ Change the theme or layout* on the event page. **Preview selection** opens the
+card in a new tab with sample guests, using whichever swatches are currently
+selected — it submits the picker as a GET, so you can try a theme before saving
+it. A ribbon names the theme and says whether it is the saved one. Previewing
+creates nothing.
+
+```
+/events/<id>/preview                                    # the saved look
+/events/<id>/preview?card_theme=neon&card_layout=split  # what the button sends
+/events/<id>/preview?theme=neon&layout=split            # short form
+```
+
+Adding a theme is one entry in `app/themes.py` plus one `[data-theme="..."]`
+block of custom properties in `invite.css` — no migration, since the choice is
+stored as a plain string. Unknown names fall back to the default rather than
+failing, so a renamed theme never breaks a live invitation; tests assert every
+catalogued theme has a matching CSS block.
+
+Note that invitation cards ignore the viewer's dark-mode preference. A card is
+a designed artefact — a host who picks Garden Party should get it on every
+screen — so themes are explicit, with Midnight and After Dark available when a
+dark card is what you want.
 
 ### Restricted vs open invitations
 
@@ -109,6 +152,8 @@ app/
   extensions.py    db + migrate instances, constraint naming convention
   models/          Group, Member, Event, Invitation, UtcDateTime
   services/        every database query lives here
+  themes.py        theme + layout catalogue (palettes, fonts, swatches)
+  preview_data.py  sample guests for card previews
   api/             JSON API blueprint  (/api/...)
   invite/          public invitation cards  (/i/<token>) -- unauthenticated
   web/             server-rendered UI blueprint (host-facing)
@@ -212,4 +257,5 @@ curl -X POST localhost:5000/api/events/1/rsvp -H 'Content-Type: application/json
 .venv/bin/python -m pytest
 ```
 
-59 tests, running against an in-memory SQLite database.
+91 tests, running against an in-memory SQLite database — including every
+theme and every layout rendering a real card.

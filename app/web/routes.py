@@ -8,11 +8,22 @@ from typing import Optional
 from flask import flash, redirect, render_template, request, url_for
 
 from app.models import GroupKind, RsvpStatus
+from app.themes import (
+    DEFAULT_LAYOUT,
+    DEFAULT_THEME,
+    LAYOUTS,
+    all_fonts_url,
+    font_query_for,
+    get_layout,
+    get_theme,
+    themes_by_mood,
+)
 from app.services import events as events_svc
 from app.services import groups as groups_svc
 from app.services import invitations as invites_svc
 from app.services import invite_links as links_svc
 from app.services import members as members_svc
+from app.preview_data import SAMPLE_GROUP, SAMPLE_LINK, SAMPLE_MEMBERS
 from app.web import web_bp
 
 
@@ -135,9 +146,28 @@ def move_member(member_id: int):
 
 # --- Events -----------------------------------------------------------------
 
+def _appearance_picker() -> dict:
+    """Context for the theme/layout grid.
+
+    ``all_fonts_url`` covers every theme in one request so each swatch previews
+    in its real typeface -- worth it on a host-facing page, not on a card.
+    """
+    return {
+        "theme_groups": themes_by_mood(),
+        "layouts": LAYOUTS,
+        "all_fonts_url": all_fonts_url(),
+    }
+
+
 @web_bp.get("/events")
 def events():
-    return render_template("events.html", events=events_svc.list_events())
+    return render_template(
+        "events.html",
+        events=events_svc.list_events(),
+        default_theme=DEFAULT_THEME,
+        default_layout=DEFAULT_LAYOUT,
+        **_appearance_picker(),
+    )
 
 
 @web_bp.post("/events")
@@ -150,6 +180,8 @@ def create_event():
             starts_at=_form_dt("starts_at"),
             ends_at=_form_dt("ends_at"),
             capacity=_form_int("capacity"),
+            card_theme=request.form.get("card_theme", DEFAULT_THEME),
+            card_layout=request.form.get("card_layout", DEFAULT_LAYOUT),
         )
     except ValueError as err:
         flash(str(err), "error")
@@ -173,6 +205,9 @@ def event_detail(event_id: int):
         uninvited=[m for m in members_svc.list_members() if m.id not in invited_ids],
         statuses=RsvpStatus.ALL,
         links=links,
+        default_theme=event.card_theme,
+        default_layout=event.card_layout,
+        **_appearance_picker(),
     )
 
 
@@ -292,3 +327,59 @@ def create_all_links(event_id: int):
     links = links_svc.create_links_for_all_groups(event)
     flash(f"{len(links)} invitation link{'' if len(links) == 1 else 's'} ready.", "success")
     return redirect(url_for("web.event_detail", event_id=event.id))
+
+
+# --- Card appearance --------------------------------------------------------
+
+@web_bp.post("/events/<int:event_id>/appearance")
+def set_appearance(event_id: int):
+    event = events_svc.get_event_or_404(event_id)
+    try:
+        events_svc.set_appearance(
+            event,
+            request.form.get("card_theme", DEFAULT_THEME),
+            request.form.get("card_layout", DEFAULT_LAYOUT),
+        )
+        flash(f"Cards now use {event.theme.label} / {event.layout.label}.", "success")
+    except ValueError as err:
+        flash(str(err), "error")
+    return redirect(url_for("web.event_detail", event_id=event.id))
+
+
+@web_bp.get("/events/<int:event_id>/preview")
+def preview_card(event_id: int):
+    """This event's card rendered with sample guests.
+
+    Lets a host see a theme before anything is sent. Creates no rows and touches
+    no real invitation; ``?theme=`` and ``?layout=`` override for side-by-side
+    comparison.
+    """
+    event = events_svc.get_event_or_404(event_id)
+    # "card_theme"/"card_layout" are what the picker form posts; "theme"/"layout"
+    # are the short forms for hand-written comparison URLs.
+    theme = get_theme(
+        request.args.get("theme") or request.args.get("card_theme") or event.card_theme
+    )
+    layout = get_layout(
+        request.args.get("layout") or request.args.get("card_layout") or event.card_layout
+    )
+
+    return render_template(
+        "invite/card.html",
+        preview=True,
+        link=SAMPLE_LINK,
+        event=event,
+        group=SAMPLE_GROUP,
+        members=SAMPLE_MEMBERS,
+        rsvps={},
+        group_status=None,
+        mixed=False,
+        statuses=RsvpStatus.ALL,
+        restricted=True,
+        theme_name=theme.name,
+        layout_name=layout.name,
+        fonts_url=font_query_for(theme.name),
+        preview_theme=theme,
+        preview_layout=layout,
+        preview_saved=(theme.name == event.card_theme and layout.name == event.card_layout),
+    )

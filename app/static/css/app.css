@@ -145,3 +145,71 @@ form.inline { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap
 .opennote { margin: 0.5rem 0 0; padding: 0.5rem 0.7rem; background: var(--bg); border-radius: 7px; font-size: 0.88rem; color: var(--muted); }
 .opennote strong { color: var(--text); }
 .inline-check { flex-direction: row; align-items: center; gap: 0.3rem; align-self: center; padding-bottom: 0; font-size: 0.85rem; cursor: help; }
+
+/* --- Theme / layout picker ------------------------------------------------ */
+
+.picker-mood { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); margin: 1rem 0 0.5rem; }
+.picker-mood:first-child { margin-top: 0; }
+
+.picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; }
+.picker-grid-layouts { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
+.swatch { display: flex; flex-direction: column; gap: 0.45rem; cursor: pointer; border: 2px solid transparent; border-radius: 10px; padding: 0.4rem; transition: border-color 0.12s ease, background 0.12s ease; }
+.swatch:hover { background: var(--bg); }
+.swatch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.swatch:has(input:checked) { border-color: var(--accent); background: var(--bg); }
+.swatch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Miniature of the card, built from the theme's own custom properties. */
+.swatch-card {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  aspect-ratio: 5 / 4; padding: 0.7rem 0.6rem;
+  background: var(--sw-paper); border: 1px solid var(--sw-edge); border-radius: 4px;
+  overflow: hidden;
+}
+.swatch-orn { color: var(--sw-accent); font-size: 0.6rem; line-height: 1; }
+.swatch-orn::before { content: "\2726"; }
+.swatch-title { font-family: var(--sw-font); color: var(--sw-ink); font-size: 0.92rem; line-height: 1.1; text-align: center; }
+.swatch-rule { width: 34%; height: 1px; background: var(--sw-edge); margin: 0.1rem 0; }
+.swatch-lines { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; width: 100%; }
+.swatch-lines i { display: block; height: 2px; border-radius: 1px; background: var(--sw-edge); width: 62%; }
+.swatch-lines i:last-child { width: 40%; }
+.swatch-btns { display: flex; gap: 0.25rem; margin-top: auto; width: 100%; }
+.swatch-btns b { flex: 1; height: 9px; border-radius: 2px; background: var(--sw-accent); }
+.swatch-btns b:last-child { background: transparent; border: 1px solid var(--sw-edge); }
+
+.swatch-meta { display: flex; flex-direction: column; gap: 0.1rem; padding: 0 0.15rem; }
+.swatch-name { font-size: 0.82rem; font-weight: 600; }
+.swatch-desc { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
+
+/* Layout wireframes: same boxes, rearranged per layout. */
+.wire { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.28rem; aspect-ratio: 5 / 4; padding: 0.7rem 0.6rem; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.wire i { display: block; border-radius: 2px; background: var(--border); }
+.wire-band { display: none; }
+.wire-title { width: 62%; height: 8px; background: var(--muted); }
+.wire-line { width: 74%; height: 3px; }
+.wire-line.short { width: 48%; }
+.wire-btns { width: 66%; height: 10px; margin-top: auto; background: var(--accent); }
+
+.wire-banner { padding-top: 0; }
+.wire-banner .wire-band { display: block; width: calc(100% + 1.2rem); height: 30%; margin: 0 -0.6rem 0.4rem; background: var(--accent); border-radius: 0; }
+.wire-banner .wire-title, .wire-banner .wire-line { align-self: flex-start; }
+.wire-banner .wire-btns { align-self: flex-start; width: 55%; }
+
+.wire-split { flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 0.25rem 0.5rem; }
+.wire-split .wire-title { width: 42%; height: 8px; }
+.wire-split .wire-btns { width: 42%; margin-top: 0; order: 3; }
+.wire-split .wire-line { width: 42%; order: 2; }
+.wire-split .wire-line.short { width: 30%; order: 4; }
+
+.wire-minimal { align-items: flex-start; gap: 0.32rem; }
+.wire-minimal .wire-title { width: 50%; height: 7px; }
+.wire-minimal .wire-btns { width: 44%; }
+
+.appearance-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem; }
+
+.picker-heading { font-size: 0.85rem; margin: 1.25rem 0 0.6rem; }
+.picker-heading:first-child { margin-top: 0; }
+.appearance summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+.appearance summary:hover { color: var(--text); }
+.appearance[open] summary { margin-bottom: 1rem; }

@@ -1,5 +1,14 @@
 {% extends "base.html" %}
+{% import "_appearance.html" as appearance %}
 {% block title %}{{ event.name }}{% endblock %}
+
+{% block head %}
+  {% if all_fonts_url %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="{{ all_fonts_url }}" rel="stylesheet">
+  {% endif %}
+{% endblock %}
 
 {% block content %}
 <p class="crumb"><a href="{{ url_for('web.events') }}">&larr; Events</a></p>
@@ -29,6 +38,35 @@
 {% if event.capacity and counts['attending'] > event.capacity %}
   <p class="flash flash-error">Over capacity by {{ counts['attending'] - event.capacity }}.</p>
 {% endif %}
+
+<section class="card">
+  <div class="section-head">
+    <h2>Invitation card</h2>
+    <span class="muted">{{ event.theme.label }} &middot; {{ event.layout.label }}</span>
+  </div>
+  <details class="appearance" {{ 'open' if request.args.get('appearance') }}>
+    <summary>Change the theme or layout</summary>
+    <form method="post" action="{{ url_for('web.set_appearance', event_id=event.id) }}">
+      <h3 class="picker-heading">Theme</h3>
+      {{ appearance.theme_grid(theme_groups, default_theme) }}
+
+      <h3 class="picker-heading">Layout</h3>
+      {{ appearance.layout_grid(layouts, default_layout) }}
+
+      <div class="appearance-actions">
+        <button class="btn btn-primary" type="submit">Save appearance</button>
+        {# Submitting as GET to the preview URL carries the currently selected
+           radios along, so Preview shows the theme you just clicked rather than
+           the one last saved. #}
+        <button class="btn" type="submit"
+                formmethod="get"
+                formaction="{{ url_for('web.preview_card', event_id=event.id) }}"
+                formtarget="_blank">Preview selection</button>
+        <span class="muted">Preview opens in a new tab; saving applies to every invitation.</span>
+      </div>
+    </form>
+  </details>
+</section>
 
 <section class="card">
   <h2>Invite</h2>
