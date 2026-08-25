@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<h1>Users</h1>
+<p class="muted">{{ users|length }} account{{ '' if users|length == 1 else 's' }},
+   {{ admin_count }} active administrator{{ '' if admin_count == 1 else 's' }}.</p>
+
+<section class="card">
+  <h2>Add a user</h2>
+  <form method="post" action="{{ url_for('admin.create_user') }}" class="form-grid">
+    <label>Email
+      <input name="email" type="email" required autocomplete="off">
+    </label>
+    <label>Name
+      <input name="name" placeholder="optional">
+    </label>
+    <label>Password
+      <input name="password" type="password" required minlength="8" autocomplete="new-password">
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="is_admin" value="1"> Site admin
+    </label>
+    <div class="wide"><button class="btn btn-primary" type="submit">Add user</button></div>
+  </form>
+</section>
+
+<section>
+  <h2>Accounts</h2>
+  <table>
+    <thead><tr><th>User</th><th>Role</th><th>Events</th><th>Change</th><th></th></tr></thead>
+    <tbody>
+    {% for user in users %}
+      <tr>
+        <td>
+          <strong>{{ user.display_name }}</strong>
+          {% if user.id == current_user.id %}<span class="pill">you</span>{% endif %}
+          <br><span class="muted">{{ user.email }}</span>
+        </td>
+        <td>
+          {% if user.is_admin %}<span class="pill">admin</span>{% else %}<span class="muted">host</span>{% endif %}
+          {% if not user.is_active %}<span class="pill pill-open">deactivated</span>{% endif %}
+        </td>
+        <td>{{ user.owned_events|length }}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.update_user', user_id=user.id) }}" class="inline">
+            <input type="hidden" name="flags" value="1">
+            <label class="checkbox inline-check">
+              <input type="checkbox" name="is_admin" value="1" {{ 'checked' if user.is_admin }}> admin
+            </label>
+            <label class="checkbox inline-check">
+              <input type="checkbox" name="is_active" value="1" {{ 'checked' if user.is_active }}> active
+            </label>
+            <input name="password" type="password" placeholder="new password" minlength="8"
+                   autocomplete="new-password" class="pw-field">
+            <button class="btn btn-sm" type="submit">Save</button>
+          </form>
+        </td>
+        <td class="right">
+          {% if user.id != current_user.id %}
+            <form method="post" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
+                  onsubmit="return confirm('Delete {{ user.display_name }}? Their events become unowned.');">
+              <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

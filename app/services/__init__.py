@@ -7,6 +7,6 @@ query to a different store) a contained change.
 
 from __future__ import annotations
 
-from app.services import events, groups, invitations, invite_links, members
+from app.services import events, groups, invitations, invite_links, members, users
 
-__all__ = ["events", "groups", "invitations", "invite_links", "members"]
+__all__ = ["events", "groups", "invitations", "invite_links", "members", "users"]

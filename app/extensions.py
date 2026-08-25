@@ -6,6 +6,7 @@ them without creating circular imports.
 
 from __future__ import annotations
 
+from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
@@ -32,3 +33,18 @@ db = SQLAlchemy(model_class=Base)
 # render_as_batch rewrites ALTER TABLE into create/copy/drop for SQLite, which
 # otherwise cannot alter or drop columns.  It is a no-op on other backends.
 migrate = Migrate(render_as_batch=True)
+
+
+login_manager = LoginManager()
+login_manager.login_view = "auth.login"
+login_manager.login_message = "Please sign in to continue."
+login_manager.login_message_category = "error"
+# Invalidates sessions if the browser fingerprint changes.
+login_manager.session_protection = "strong"
+
+
+@login_manager.user_loader
+def _load_user(user_id: str):
+    from app.models import User
+
+    return db.session.get(User, int(user_id))

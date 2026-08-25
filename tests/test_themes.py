@@ -18,6 +18,16 @@ from app.themes import (
     get_theme,
     themes_by_mood,
 )
+from tests.conftest import sign_in
+
+
+@pytest.fixture(autouse=True)
+def _signed_in_admin(client, admin):
+    """These tests exercise features, not authorization, so they run as a site
+    admin -- which can also reach events created without an explicit owner.
+    Authorization itself is covered in test_auth.py and test_ownership.py.
+    """
+    sign_in(client, admin)
 
 
 @pytest.fixture

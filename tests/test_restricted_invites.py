@@ -12,6 +12,17 @@ from app.services import events as events_svc
 from app.services import groups as groups_svc
 from app.services import invite_links as links_svc
 from app.services import members as members_svc
+from tests.conftest import sign_in
+
+
+@pytest.fixture(autouse=True)
+def _signed_in_admin(client, admin):
+    """These tests exercise features, not authorization, so they run as a site
+    admin -- which can also reach events created without an explicit owner.
+    Authorization itself is covered in test_auth.py and test_ownership.py.
+    """
+    sign_in(client, admin)
+
 
 
 @pytest.fixture

@@ -6,8 +6,10 @@ from datetime import datetime
 from typing import Optional
 
 from flask import jsonify, request
+from flask_login import current_user
 
 from app.api import api_bp
+from app.authz import admin_required, event_or_403
 from app.models import RsvpStatus
 from app.themes import DEFAULT_LAYOUT, DEFAULT_THEME
 from app.services import events as events_svc
@@ -15,6 +17,7 @@ from app.services import groups as groups_svc
 from app.services import invitations as invites_svc
 from app.services import invite_links as links_svc
 from app.services import members as members_svc
+from app.services import users as users_svc
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -120,7 +123,7 @@ def delete_member(member_id: int):
 
 @api_bp.get("/events")
 def list_events():
-    return jsonify([e.to_dict() for e in events_svc.list_events()])
+    return jsonify([e.to_dict() for e in events_svc.list_events(current_user)])
 
 
 @api_bp.post("/events")
@@ -135,18 +138,19 @@ def create_event():
         capacity=data.get("capacity"),
         card_theme=data.get("card_theme", DEFAULT_THEME),
         card_layout=data.get("card_layout", DEFAULT_LAYOUT),
+        owner=current_user,
     )
     return jsonify(event.to_dict()), 201
 
 
 @api_bp.get("/events/<int:event_id>")
 def get_event(event_id: int):
-    return jsonify(events_svc.get_event_or_404(event_id).to_dict())
+    return jsonify(event_or_403(event_id).to_dict())
 
 
 @api_bp.patch("/events/<int:event_id>")
 def update_event(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     data = dict(request.get_json(silent=True) or {})
     for key in ("starts_at", "ends_at"):
         if key in data:
@@ -156,7 +160,7 @@ def update_event(event_id: int):
 
 @api_bp.delete("/events/<int:event_id>")
 def delete_event(event_id: int):
-    events_svc.delete_event(events_svc.get_event_or_404(event_id))
+    events_svc.delete_event(event_or_403(event_id))
     return "", 204
 
 
@@ -164,14 +168,14 @@ def delete_event(event_id: int):
 
 @api_bp.get("/events/<int:event_id>/guests")
 def guest_list(event_id: int):
-    events_svc.get_event_or_404(event_id)
+    event_or_403(event_id)
     return jsonify([i.to_dict() for i in events_svc.guest_list(event_id)])
 
 
 @api_bp.post("/events/<int:event_id>/invite")
 def invite(event_id: int):
     """Invite a single member (``member_id``) or a whole group (``group_id``)."""
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     data = request.get_json(silent=True) or {}
 
     if data.get("group_id"):
@@ -189,7 +193,7 @@ def invite(event_id: int):
 @api_bp.post("/events/<int:event_id>/rsvp")
 def rsvp(event_id: int):
     """Set an RSVP for one member, or for an entire group at once."""
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     data = request.get_json(silent=True) or {}
     status = data.get("rsvp", "")
     if status not in RsvpStatus.ALL:
@@ -213,7 +217,7 @@ def rsvp(event_id: int):
 
 @api_bp.get("/events/<int:event_id>/links")
 def list_links(event_id: int):
-    events_svc.get_event_or_404(event_id)
+    event_or_403(event_id)
     links = links_svc.links_for_event(event_id)
     return jsonify([{**link.to_dict(), "url": link.url()} for link in links])
 
@@ -221,7 +225,7 @@ def list_links(event_id: int):
 @api_bp.post("/events/<int:event_id>/links")
 def create_link(event_id: int):
     """Mint a link for one group, or for every group already on the guest list."""
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     data = request.get_json(silent=True) or {}
 
     restricted = bool(data.get("restricted", True))
@@ -238,6 +242,7 @@ def create_link(event_id: int):
 @api_bp.patch("/events/<int:event_id>/links/<int:group_id>")
 def update_link(event_id: int, group_id: int):
     """Switch a group between restricted and open, or set its head count."""
+    event_or_403(event_id)
     link = links_svc.get_link(event_id, group_id)
     if link is None:
         return jsonify({"error": "No link for that group"}), 404
@@ -254,6 +259,7 @@ def update_link(event_id: int, group_id: int):
 
 @api_bp.delete("/events/<int:event_id>/links/<int:group_id>")
 def revoke_link(event_id: int, group_id: int):
+    event_or_403(event_id)
     link = links_svc.get_link(event_id, group_id)
     if link is None:
         return jsonify({"error": "No link for that group"}), 404
@@ -263,8 +269,74 @@ def revoke_link(event_id: int, group_id: int):
 
 @api_bp.post("/events/<int:event_id>/links/<int:group_id>/rotate")
 def rotate_link(event_id: int, group_id: int):
+    event_or_403(event_id)
     link = links_svc.get_link(event_id, group_id)
     if link is None:
         return jsonify({"error": "No link for that group"}), 404
     links_svc.rotate(link)
     return jsonify({**link.to_dict(), "url": link.url()})
+
+
+# --- Users (site admins only) -----------------------------------------------
+
+@api_bp.get("/users")
+@admin_required
+def list_users():
+    return jsonify([u.to_dict() for u in users_svc.list_users()])
+
+
+@api_bp.post("/users")
+@admin_required
+def create_user():
+    data = request.get_json(silent=True) or {}
+    user = users_svc.create_user(
+        email=data.get("email", ""),
+        password=data.get("password", ""),
+        name=data.get("name"),
+        is_admin=bool(data.get("is_admin", False)),
+    )
+    return jsonify(user.to_dict()), 201
+
+
+@api_bp.patch("/users/<int:user_id>")
+@admin_required
+def update_user(user_id: int):
+    user = users_svc.get_user_or_404(user_id)
+    data = request.get_json(silent=True) or {}
+    users_svc.update_user(
+        user,
+        email=data.get("email"),
+        name=data.get("name"),
+        is_admin=data.get("is_admin"),
+        is_active=data.get("is_active"),
+        password=data.get("password"),
+    )
+    return jsonify(user.to_dict())
+
+
+@api_bp.delete("/users/<int:user_id>")
+@admin_required
+def delete_user(user_id: int):
+    user = users_svc.get_user_or_404(user_id)
+    if user.id == current_user.id:
+        return jsonify({"error": "You cannot delete your own account"}), 400
+    users_svc.delete_user(user)
+    return "", 204
+
+
+# --- Co-hosts ---------------------------------------------------------------
+
+@api_bp.post("/events/<int:event_id>/hosts")
+def add_co_host(event_id: int):
+    event = event_or_403(event_id)
+    data = request.get_json(silent=True) or {}
+    user = users_svc.get_user_or_404(int(data.get("user_id", 0)))
+    events_svc.add_co_host(event, user)
+    return jsonify(event.to_dict()), 201
+
+
+@api_bp.delete("/events/<int:event_id>/hosts/<int:user_id>")
+def remove_co_host(event_id: int, user_id: int):
+    event = event_or_403(event_id)
+    events_svc.remove_co_host(event, users_svc.get_user_or_404(user_id))
+    return "", 204

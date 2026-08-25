@@ -6,7 +6,9 @@ from datetime import datetime
 from typing import Optional
 
 from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user
 
+from app.authz import event_or_403
 from app.models import GroupKind, RsvpStatus
 from app.themes import (
     DEFAULT_LAYOUT,
@@ -23,6 +25,7 @@ from app.services import groups as groups_svc
 from app.services import invitations as invites_svc
 from app.services import invite_links as links_svc
 from app.services import members as members_svc
+from app.services import users as users_svc
 from app.preview_data import SAMPLE_GROUP, SAMPLE_LINK, SAMPLE_MEMBERS
 from app.web import web_bp
 
@@ -46,7 +49,7 @@ def _form_int(field: str) -> Optional[int]:
 def index():
     return render_template(
         "index.html",
-        events=events_svc.list_events(),
+        events=events_svc.list_events(current_user),
         groups=groups_svc.list_groups(),
     )
 
@@ -163,7 +166,7 @@ def _appearance_picker() -> dict:
 def events():
     return render_template(
         "events.html",
-        events=events_svc.list_events(),
+        events=events_svc.list_events(current_user),
         default_theme=DEFAULT_THEME,
         default_layout=DEFAULT_LAYOUT,
         **_appearance_picker(),
@@ -182,6 +185,7 @@ def create_event():
             capacity=_form_int("capacity"),
             card_theme=request.form.get("card_theme", DEFAULT_THEME),
             card_layout=request.form.get("card_layout", DEFAULT_LAYOUT),
+            owner=current_user,
         )
     except ValueError as err:
         flash(str(err), "error")
@@ -193,7 +197,7 @@ def create_event():
 
 @web_bp.get("/events/<int:event_id>")
 def event_detail(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     invited_ids = {inv.member_id for inv in event.invitations}
     links = {link.group_id: link for link in links_svc.links_for_event(event.id)}
     return render_template(
@@ -207,13 +211,19 @@ def event_detail(event_id: int):
         links=links,
         default_theme=event.card_theme,
         default_layout=event.card_layout,
+        hosts=event.hosts(),
+        host_candidates=[
+            u for u in users_svc.list_users()
+            if u.is_active and not event.is_managed_by_directly(u)
+        ],
+        can_transfer=(current_user.is_admin or event.owner_id == current_user.id),
         **_appearance_picker(),
     )
 
 
 @web_bp.post("/events/<int:event_id>/delete")
 def delete_event(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     name = event.name
     events_svc.delete_event(event)
     flash(f"Deleted {name}.", "success")
@@ -222,7 +232,7 @@ def delete_event(event_id: int):
 
 @web_bp.post("/events/<int:event_id>/invite")
 def invite(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     group_id = _form_int("group_id")
     member_id = _form_int("member_id")
 
@@ -250,7 +260,7 @@ def invite(event_id: int):
 
 @web_bp.post("/events/<int:event_id>/rsvp")
 def rsvp(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     status = request.form.get("rsvp", "")
     group_id = _form_int("group_id")
     member_id = _form_int("member_id")
@@ -279,6 +289,7 @@ def remove_invitation(invitation_id: int):
     from app.models import Invitation
 
     invitation = db.get_or_404(Invitation, invitation_id)
+    event_or_403(invitation.event_id)  # the guard the id alone would bypass
     event_id = invitation.event_id
     invites_svc.uninvite(invitation)
     flash("Removed from the guest list.", "success")
@@ -290,7 +301,7 @@ def remove_invitation(invitation_id: int):
 @web_bp.post("/events/<int:event_id>/links/<int:group_id>/<action>")
 def manage_link(event_id: int, group_id: int, action: str):
     """Create, revoke, restore or rotate a group's shareable invitation link."""
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     group = groups_svc.get_group_or_404(group_id)
 
     if action == "create":
@@ -323,7 +334,7 @@ def manage_link(event_id: int, group_id: int, action: str):
 
 @web_bp.post("/events/<int:event_id>/links")
 def create_all_links(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     links = links_svc.create_links_for_all_groups(event)
     flash(f"{len(links)} invitation link{'' if len(links) == 1 else 's'} ready.", "success")
     return redirect(url_for("web.event_detail", event_id=event.id))
@@ -333,7 +344,7 @@ def create_all_links(event_id: int):
 
 @web_bp.post("/events/<int:event_id>/appearance")
 def set_appearance(event_id: int):
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     try:
         events_svc.set_appearance(
             event,
@@ -354,7 +365,7 @@ def preview_card(event_id: int):
     no real invitation; ``?theme=`` and ``?layout=`` override for side-by-side
     comparison.
     """
-    event = events_svc.get_event_or_404(event_id)
+    event = event_or_403(event_id)
     # "card_theme"/"card_layout" are what the picker form posts; "theme"/"layout"
     # are the short forms for hand-written comparison URLs.
     theme = get_theme(
@@ -383,3 +394,47 @@ def preview_card(event_id: int):
         preview_layout=layout,
         preview_saved=(theme.name == event.card_theme and layout.name == event.card_layout),
     )
+
+
+# --- Co-hosts ---------------------------------------------------------------
+
+@web_bp.post("/events/<int:event_id>/hosts")
+def add_co_host(event_id: int):
+    """Grant another account the same powers over this event."""
+    event = event_or_403(event_id)
+    user = users_svc.get_user_or_404(_form_int("user_id") or 0)
+    try:
+        events_svc.add_co_host(event, user)
+        flash(f"{user.display_name} can now manage this event.", "success")
+    except ValueError as err:
+        flash(str(err), "error")
+    return redirect(url_for("web.event_detail", event_id=event.id))
+
+
+@web_bp.post("/events/<int:event_id>/hosts/<int:user_id>/remove")
+def remove_co_host(event_id: int, user_id: int):
+    event = event_or_403(event_id)
+    user = users_svc.get_user_or_404(user_id)
+    events_svc.remove_co_host(event, user)
+    flash(f"{user.display_name} no longer manages this event.", "success")
+
+    # Removing yourself means losing access, so land somewhere you can still see.
+    if user.id == current_user.id and not event.is_managed_by(current_user):
+        return redirect(url_for("web.events"))
+    return redirect(url_for("web.event_detail", event_id=event.id))
+
+
+@web_bp.post("/events/<int:event_id>/hosts/<int:user_id>/transfer")
+def transfer_ownership(event_id: int, user_id: int):
+    event = event_or_403(event_id)
+    if not (current_user.is_admin or event.owner_id == current_user.id):
+        flash("Only the owner can hand over an event.", "error")
+        return redirect(url_for("web.event_detail", event_id=event.id))
+
+    user = users_svc.get_user_or_404(user_id)
+    try:
+        events_svc.transfer_ownership(event, user)
+        flash(f"{user.display_name} now owns this event.", "success")
+    except ValueError as err:
+        flash(str(err), "error")
+    return redirect(url_for("web.event_detail", event_id=event.id))

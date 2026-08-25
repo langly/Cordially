@@ -10,10 +10,19 @@
 <body>
   <header class="topbar">
     <a class="brand" href="{{ url_for('web.index') }}">Events</a>
-    <nav>
-      <a href="{{ url_for('web.events') }}">Events</a>
-      <a href="{{ url_for('web.groups') }}">Families &amp; groups</a>
-    </nav>
+    {% if current_user.is_authenticated %}
+      <nav>
+        <a href="{{ url_for('web.events') }}">Events</a>
+        <a href="{{ url_for('web.groups') }}">Families &amp; groups</a>
+        {% if current_user.is_admin %}
+          <a href="{{ url_for('admin.users') }}">Users</a>
+        {% endif %}
+      </nav>
+      <form method="post" action="{{ url_for('auth.logout') }}" class="inline signout">
+        <span class="muted">{{ current_user.display_name }}</span>
+        <button class="btn btn-sm" type="submit">Sign out</button>
+      </form>
+    {% endif %}
   </header>
 
   <main>

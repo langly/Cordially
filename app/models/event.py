@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensions import db
@@ -16,6 +16,7 @@ from app.themes import DEFAULT_LAYOUT, DEFAULT_THEME, get_layout, get_theme
 if TYPE_CHECKING:
     from app.models.invitation import Invitation
     from app.models.invite_link import InviteLink
+    from app.models.user import User
 
 
 class Event(TimestampMixin, db.Model):
@@ -30,6 +31,12 @@ class Event(TimestampMixin, db.Model):
     ends_at: Mapped[Optional[datetime]] = mapped_column(UtcDateTime)
 
     capacity: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Nullable so events that predate accounts stay readable; an event with no
+    # owner is manageable by site admins only.
+    owner_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
 
     # Appearance of this event's invitation cards. Stored as plain strings and
     # resolved through app.themes, so adding or renaming a theme never needs a
@@ -51,6 +58,43 @@ class Event(TimestampMixin, db.Model):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    owner: Mapped[Optional["User"]] = relationship(
+        back_populates="owned_events", foreign_keys=[owner_id]
+    )
+    co_hosts: Mapped[List["User"]] = relationship(
+        secondary="event_hosts", back_populates="co_hosted_events"
+    )
+
+    def is_managed_by(self, user) -> bool:
+        """Single source of truth for "may this user act on this event?".
+
+        Site admins may manage anything. Otherwise it is the owner or a
+        co-host -- co-hosts currently have the same powers as the owner.
+        """
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        if user.is_admin:
+            return True
+        if self.owner_id is not None and self.owner_id == user.id:
+            return True
+        return any(host.id == user.id for host in self.co_hosts)
+
+    def is_managed_by_directly(self, user) -> bool:
+        """Owner or co-host, ignoring the site-admin override.
+
+        Admins can manage every event, but they are not *hosts* of it -- the
+        co-host picker still offers them.
+        """
+        if user is None:
+            return False
+        if self.owner_id is not None and self.owner_id == user.id:
+            return True
+        return any(host.id == user.id for host in self.co_hosts)
+
+    def hosts(self) -> List["User"]:
+        """Owner first, then co-hosts."""
+        people = [self.owner] if self.owner else []
+        return people + sorted(self.co_hosts, key=lambda u: (u.name or u.email).lower())
 
     @property
     def theme(self):
@@ -122,6 +166,9 @@ class Event(TimestampMixin, db.Model):
             "capacity": self.capacity,
             "card_theme": self.card_theme,
             "card_layout": self.card_layout,
+            "owner_id": self.owner_id,
+            "owner": self.owner.display_name if self.owner else None,
+            "co_hosts": [u.display_name for u in self.co_hosts],
         }
         if include_counts:
             data["counts"] = self.counts()

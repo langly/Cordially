@@ -41,6 +41,57 @@
 
 <section class="card">
   <div class="section-head">
+    <h2>Hosts</h2>
+    <span class="muted">Co-hosts can do everything the owner can.</span>
+  </div>
+  <div class="hosts-row">
+    {% for host in hosts %}
+      <span class="host-chip">
+        {{ host.display_name }}
+        {% if host.id == event.owner_id %}
+          <span class="pill">owner</span>
+        {% else %}
+          <form method="post"
+                action="{{ url_for('web.remove_co_host', event_id=event.id, user_id=host.id) }}"
+                onsubmit="return confirm('Remove {{ host.display_name }} as a co-host?');">
+            <button class="linkbtn" type="submit" title="Remove co-host">&times;</button>
+          </form>
+        {% endif %}
+      </span>
+    {% endfor %}
+    {% if not event.owner %}
+      <span class="muted">No owner — visible to site admins only.</span>
+    {% endif %}
+  </div>
+
+  {% if host_candidates %}
+    <form method="post" action="{{ url_for('web.add_co_host', event_id=event.id) }}" class="inline" style="margin-top:0.75rem">
+      <select name="user_id" required>
+        <option value="">Add a co-host…</option>
+        {% for user in host_candidates %}
+          <option value="{{ user.id }}">{{ user.display_name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit">Add co-host</button>
+    </form>
+  {% endif %}
+
+  {% if can_transfer and event.co_hosts %}
+    <form method="post" class="inline" style="margin-top:0.5rem"
+          onsubmit="return confirm('Hand this event over? You stay a co-host only if re-added.');">
+      <span class="muted">Transfer ownership to:</span>
+      {% for host in event.co_hosts %}
+        <button class="btn btn-sm" type="submit"
+                formaction="{{ url_for('web.transfer_ownership', event_id=event.id, user_id=host.id) }}">
+          {{ host.display_name }}
+        </button>
+      {% endfor %}
+    </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="section-head">
     <h2>Invitation card</h2>
     <span class="muted">{{ event.theme.label }} &middot; {{ event.layout.label }}</span>
   </div>

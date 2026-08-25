@@ -11,6 +11,40 @@ answers for everyone — one accept means the whole family is coming.
 Runs on SQLite out of the box; moving to PostgreSQL or MySQL is a one-line
 config change (see [Changing the database](#changing-the-database)).
 
+## Accounts and access
+
+Hosts sign in; **guests never do** — RSVPs happen through the unauthenticated
+invite token, which is the whole point of the link.
+
+| Role | Can do |
+|---|---|
+| Guest (no account) | open `/i/<token>`, RSVP for their group |
+| Host | create events, manage the events they own or co-host, edit the shared address book |
+| Co-host | everything the owner can do **for that event** |
+| Site admin | all of the above on every event, plus add/modify/delete users |
+
+A host owns any number of events and can add co-hosts to each. Co-hosts
+currently have the owner's full powers on that event — but not site admin, and
+not access to the owner's other events. Ownership can be transferred.
+
+Families and groups are a **shared address book**: every signed-in host sees and
+edits all of them. Events are the private part.
+
+Bootstrap the first login, then claim any events created before accounts existed:
+
+```bash
+flask create-admin                       # prompts for email + password
+flask claim-events --email you@example.com
+```
+
+Authorization is **default-deny**: `app/__init__.py` requires a session for every
+endpoint except those named in `PUBLIC_ENDPOINTS` / `PUBLIC_BLUEPRINTS`, so a new
+route is protected unless it is deliberately exempted. A test walks the URL map
+and fails if any route answers anonymously.
+
+Event access is decided in one place, `Event.is_managed_by()`, reached through
+`authz.event_or_403`. Unknown event → 404, someone else's → 403.
+
 ## Quick start
 
 ```bash
@@ -21,6 +55,7 @@ cp .env.example .env          # optional; defaults work as-is
 export FLASK_APP=wsgi
 
 .venv/bin/flask db upgrade    # create the schema
+.venv/bin/flask create-admin  # your first login
 .venv/bin/flask seed          # optional demo data
 .venv/bin/flask run
 ```
@@ -41,7 +76,8 @@ Group  (a family, household, group of friends, company)
 |---|---|
 | `Group` | `name` (unique), `kind` (family/group/household/company), contact details, `notes` |
 | `Member` | `first_name`, `last_name`, `group_id`, contact details, `is_child`, `age`, `dietary_notes` |
-| `Event` | `name`, `starts_at`, `ends_at`, `location`, `capacity`, `description`, `card_theme`, `card_layout` |
+| `User` | `email` (unique, lowercased), `password_hash`, `is_admin`, `is_active` |
+| `Event` | `owner_id`, co-hosts via `event_hosts`, `name`, `starts_at`, `ends_at`, `location`, `capacity`, `description`, `card_theme`, `card_layout` |
 | `Invitation` | `rsvp` (pending/yes/no/maybe), `responded_at`, `plus_ones`, `table_assignment` |
 | `InviteLink` | `token`, `restricted`, `adults_attending`, `children_attending`, `revoked`, `responded_by`, `response_note`, `view_count` |
 
@@ -208,7 +244,10 @@ The schema is written to stay portable, deliberately:
 | `GET/PATCH/DELETE` | `/api/groups/<id>` | detail includes members |
 | `GET/POST` | `/api/members` | `?group_id=`, `?q=` |
 | `GET/PATCH/DELETE` | `/api/members/<id>` | `PATCH group_id` moves someone |
-| `GET/POST` | `/api/events` | |
+| `GET/POST` | `/api/events` | scoped to what you may manage |
+| `GET/POST` | `/api/users` | site admins only |
+| `PATCH/DELETE` | `/api/users/<id>` | site admins only |
+| `POST/DELETE` | `/api/events/<id>/hosts[/<user_id>]` | add / remove a co-host |
 | `GET/PATCH/DELETE` | `/api/events/<id>` | includes RSVP counts |
 | `GET` | `/api/events/<id>/guests` | guest list, families kept together |
 | `POST` | `/api/events/<id>/invite` | body: `member_id` **or** `group_id` |
@@ -247,6 +286,8 @@ curl -X POST localhost:5000/api/events/1/rsvp -H 'Content-Type: application/json
 | `flask db upgrade` | apply migrations |
 | `flask db migrate -m "..."` | generate a migration after model changes |
 | `flask seed [--force]` | demo data: 3 groups, 7 members, 1 event |
+| `flask create-admin` | create a site administrator (prompts for a password) |
+| `flask claim-events --email …` | give unowned events to a user |
 | `flask db-info` | show the active dialect, driver and tables |
 | `flask init-db` | `create_all()` for a throwaway database |
 | `flask shell` | preloaded with `db` and all models |
@@ -257,5 +298,10 @@ curl -X POST localhost:5000/api/events/1/rsvp -H 'Content-Type: application/json
 .venv/bin/python -m pytest
 ```
 
-91 tests, running against an in-memory SQLite database — including every
-theme and every layout rendering a real card.
+135 tests, running against an in-memory SQLite database — including every
+theme and layout rendering a real card, and a sweep asserting no route answers
+anonymously.
+
+Password hashing uses scrypt where the Python build provides it and PBKDF2
+otherwise (`PASSWORD_HASH_METHOD`); tests drop the cost factor so the suite
+stays fast.

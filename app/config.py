@@ -21,6 +21,10 @@ DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'instance' / 'events.db'}"
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
+    # None means "use the strongest method this Python build supports"
+    # (see app/models/user.py). Overridden in tests for speed.
+    PASSWORD_HASH_METHOD = os.environ.get("PASSWORD_HASH_METHOD")
+
     # Base URL used when building shareable invite links. Set this in
     # production so links generated behind a proxy point at the public host.
     INVITE_BASE_URL = os.environ.get("INVITE_BASE_URL")
@@ -38,6 +42,9 @@ class Config:
 
 class TestConfig(Config):
     TESTING = True
+    # One PBKDF2 round: the suite creates many accounts and is not testing the
+    # KDF's cost factor. Never used outside tests.
+    PASSWORD_HASH_METHOD = "pbkdf2:sha256:1"
     SQLALCHEMY_DATABASE_URI = os.environ.get("TEST_DATABASE_URL", "sqlite://")
     WTF_CSRF_ENABLED = False
 

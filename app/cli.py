@@ -60,6 +60,14 @@ def register_cli(app: Flask) -> None:
             capacity=20,
         )
 
+        # Attach to the first admin if one exists; otherwise the event is
+        # unowned and admin-only until `flask claim-events` runs. No default
+        # password is ever created here.
+        from app.models import User
+
+        owner = db.session.query(User).filter(User.is_admin.is_(True)).order_by(User.id).first()
+        party.owner = owner
+
         db.session.add_all([smiths, patels, climbing, party])
         db.session.commit()
 
@@ -67,6 +75,46 @@ def register_cli(app: Flask) -> None:
             invites_svc.invite_group(party, group)
 
         click.echo("Seeded 3 groups, 7 members and 1 event.")
+        if owner is None:
+            click.echo(
+                "No admin exists yet, so the event is unowned. Run:\n"
+                "  flask create-admin   then   flask claim-events"
+            )
+
+    @app.cli.command("create-admin")
+    @click.option("--email", prompt=True)
+    @click.option("--name", default=None, help="Display name.")
+    @click.password_option(help="At least 8 characters.")
+    def create_admin(email: str, name: str, password: str):
+        """Create a site administrator. Use this to bootstrap the first login."""
+        from app.services import users as users_svc
+
+        try:
+            user = users_svc.create_user(email, password, name=name, is_admin=True)
+        except ValueError as err:
+            raise click.ClickException(str(err))
+        click.echo(f"Created admin {user.email}")
+
+    @app.cli.command("claim-events")
+    @click.option("--email", prompt=True, help="User who should own unowned events.")
+    def claim_events(email: str):
+        """Assign every event with no owner to a user.
+
+        Events created before accounts existed have no owner and are visible to
+        site admins only; this hands them to a real host.
+        """
+        from app.models import Event
+        from app.services import users as users_svc
+
+        user = users_svc.find_by_email(email)
+        if user is None:
+            raise click.ClickException(f"No user with email {email!r}")
+
+        orphans = db.session.query(Event).filter(Event.owner_id.is_(None)).all()
+        for event in orphans:
+            event.owner = user
+        db.session.commit()
+        click.echo(f"Assigned {len(orphans)} event(s) to {user.email}")
 
     @app.cli.command("db-info")
     def db_info():

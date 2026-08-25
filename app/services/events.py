@@ -5,11 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
-from app.models import Event, Invitation, Member
+from app.models import Event, Invitation, Member, User
+from app.models.user import event_hosts
 from app.themes import (
     DEFAULT_LAYOUT,
     DEFAULT_THEME,
@@ -18,7 +19,13 @@ from app.themes import (
 )
 
 
-def list_events() -> List[Event]:
+def list_events(user=None) -> List[Event]:
+    """Events this user may manage.
+
+    ``user=None`` means no scoping and is only for CLI/tests -- web and API
+    callers always pass the logged-in user. Site admins see everything,
+    including events whose owner has been deleted.
+    """
     stmt = (
         select(Event)
         .options(
@@ -29,6 +36,15 @@ def list_events() -> List[Event]:
         )
         .order_by(Event.starts_at.is_(None), Event.starts_at.desc())
     )
+    if user is not None and not user.is_admin:
+        stmt = stmt.where(
+            or_(
+                Event.owner_id == user.id,
+                Event.id.in_(
+                    select(event_hosts.c.event_id).where(event_hosts.c.user_id == user.id)
+                ),
+            )
+        )
     return list(db.session.scalars(stmt))
 
 
@@ -49,6 +65,7 @@ def create_event(
     capacity: Optional[int] = None,
     card_theme: str = DEFAULT_THEME,
     card_layout: str = DEFAULT_LAYOUT,
+    owner: Optional[User] = None,
 ) -> Event:
     name = (name or "").strip()
     if not name:
@@ -66,6 +83,7 @@ def create_event(
         capacity=capacity,
         card_theme=card_theme,
         card_layout=card_layout,
+        owner=owner,
     )
     db.session.add(event)
     db.session.commit()
@@ -121,3 +139,35 @@ def guest_list(event_id: int) -> List[Invitation]:
         .order_by(Member.group_id.is_(None), Member.group_id, Member.first_name)
     )
     return list(db.session.scalars(stmt))
+
+
+# --- Hosts ------------------------------------------------------------------
+
+def add_co_host(event: Event, user: User) -> Event:
+    """Give another account the same powers over this event as the owner."""
+    if event.owner_id is not None and event.owner_id == user.id:
+        raise ValueError(f"{user.display_name} already owns this event")
+    if any(host.id == user.id for host in event.co_hosts):
+        raise ValueError(f"{user.display_name} is already a co-host")
+    if not user.is_active:
+        raise ValueError(f"{user.display_name} is deactivated")
+
+    event.co_hosts.append(user)
+    db.session.commit()
+    return event
+
+
+def remove_co_host(event: Event, user: User) -> Event:
+    event.co_hosts = [host for host in event.co_hosts if host.id != user.id]
+    db.session.commit()
+    return event
+
+
+def transfer_ownership(event: Event, user: User) -> Event:
+    """Hand the event to someone else, who stops being a co-host if they were."""
+    if not user.is_active:
+        raise ValueError(f"{user.display_name} is deactivated")
+    event.co_hosts = [host for host in event.co_hosts if host.id != user.id]
+    event.owner = user
+    db.session.commit()
+    return event
