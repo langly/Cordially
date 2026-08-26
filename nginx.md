@@ -142,21 +142,19 @@ The app is **mount-point agnostic**: it runs at `/` by default, but can live
 under any prefix — `/e`, `/cordially`, `/apps/rsvp`, any depth — with only
 config, no code changes. Two pieces cooperate:
 
-1. **NGINX strips the prefix and announces it.** Use matching trailing slashes
-   so the prefix is removed before the app sees the path, and send it as
-   `X-Forwarded-Prefix`:
+1. **NGINX announces the prefix** via `X-Forwarded-Prefix`. The app strips it
+   from the path itself, so you do **not** need trailing-slash `proxy_pass`
+   rewriting — just forward the header:
 
    ```nginx
-   location = /e { return 301 /e/; }        # bare /e → /e/
-
-   location /e/static/ {                      # most-specific: served from disk
+   location /e/static/ {                      # served from disk
        alias /var/www/cordially/app/static/;
        access_log off; expires 30d;
        add_header Cache-Control "public";
    }
 
-   location /e/ {
-       proxy_pass http://events_upstream/;    # trailing slash strips /e/
+   location /e {
+       proxy_pass http://events_upstream;
        proxy_set_header X-Forwarded-Prefix /e;   # ← the prefix (no trailing slash)
        proxy_set_header Host              $host;
        proxy_set_header X-Real-IP         $remote_addr;
@@ -166,8 +164,9 @@ config, no code changes. Two pieces cooperate:
    }
    ```
 
-   The trailing slash on **both** `location /e/` and `proxy_pass …/` is what
-   rewrites `/e/events` → `/events`. Swap `/e` for whatever prefix you want.
+   Swap `/e` for whatever prefix you want. The app's middleware strips it from
+   the path whether or not NGINX also does, so this is forgiving — the one thing
+   that must be present is the `X-Forwarded-Prefix` header.
 
 2. **The app trusts the header** — set `PROXY_FIX_HOPS` to the number of
    proxies (1 for a single NGINX). This enables `ProxyFix`, which turns

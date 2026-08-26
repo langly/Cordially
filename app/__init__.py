@@ -57,13 +57,39 @@ def _install_auth_guard(app: Flask) -> None:
         return redirect(url_for("auth.login", next=target))
 
 
+class _ForwardedPrefix:
+    """Apply ``X-Forwarded-Prefix`` to the WSGI environ.
+
+    Sets ``SCRIPT_NAME`` (so generated URLs carry the prefix) and strips the
+    prefix from ``PATH_INFO`` **if it is still there** — so the app routes
+    correctly whether or not NGINX also stripped it. That idempotence is the
+    point: a sub-path deployment then needs only the header, not a fragile
+    trailing-slash ``proxy_pass`` rewrite.
+
+    Boundary-aware: prefix ``/e`` matches ``/e`` and ``/e/…`` but never
+    ``/events``.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        prefix = environ.get("HTTP_X_FORWARDED_PREFIX", "").rstrip("/")
+        if prefix:
+            environ["SCRIPT_NAME"] = prefix
+            path = environ.get("PATH_INFO", "")
+            if path == prefix or path.startswith(prefix + "/"):
+                environ["PATH_INFO"] = path[len(prefix):] or "/"
+        return self.app(environ, start_response)
+
+
 def _install_proxy_fix(app: Flask) -> None:
     """Trust proxy headers when explicitly configured to sit behind one.
 
-    ``x_prefix`` is the piece that makes the app mount-point agnostic: nginx
-    sends ``X-Forwarded-Prefix: /e`` and every generated URL picks it up, so the
-    same code serves at ``/``, ``/e`` or any depth without edits. Off by default
-    so a directly-exposed app never trusts spoofable headers.
+    Enables correct client IP, scheme and host from ``X-Forwarded-*``, plus
+    mount-point independence via ``X-Forwarded-Prefix`` (see ``_ForwardedPrefix``)
+    so the same code serves at ``/``, ``/e`` or any depth. Off by default so a
+    directly-exposed app never trusts spoofable headers.
     """
     # Config captures the env at import; also read it here so a deploy can set
     # PROXY_FIX_HOPS in the process environment without a config change.
@@ -73,9 +99,10 @@ def _install_proxy_fix(app: Flask) -> None:
 
     from werkzeug.middleware.proxy_fix import ProxyFix
 
-    app.wsgi_app = ProxyFix(
-        app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops, x_prefix=hops
-    )
+    # ProxyFix handles for/proto/host; _ForwardedPrefix owns the prefix, because
+    # unlike ProxyFix's x_prefix it also strips PATH_INFO when NGINX did not.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
+    app.wsgi_app = _ForwardedPrefix(app.wsgi_app)
 
 
 def _install_request_logging(app: Flask) -> None:
