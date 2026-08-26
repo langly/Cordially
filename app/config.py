@@ -12,9 +12,17 @@ changes.  Examples::
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'instance' / 'events.db'}"
 
 # Sentinel default. The startup guard refuses to boot in production while this
@@ -24,6 +32,18 @@ DEFAULT_SECRET_KEY = "dev-secret-change-me"
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", DEFAULT_SECRET_KEY)
+
+    # Cookie hardening. Secure defaults to on (production over HTTPS); the app
+    # factory turns it off for local http dev (FLASK_DEBUG). SameSite=Lax is the
+    # second line of CSRF defence behind the CSRF tokens on forms.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", True)
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", True)
+    PERMANENT_SESSION_LIFETIME = timedelta(days=14)
+    REMEMBER_COOKIE_DURATION = timedelta(days=14)
 
     # None means "use the strongest method this Python build supports"
     # (see app/models/user.py). Overridden in tests for speed.
@@ -54,6 +74,8 @@ class Config:
 
 class TestConfig(Config):
     TESTING = True
+    SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_SECURE = False
     # One PBKDF2 round: the suite creates many accounts and is not testing the
     # KDF's cost factor. Never used outside tests.
     PASSWORD_HASH_METHOD = "pbkdf2:sha256:1"

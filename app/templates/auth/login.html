@@ -7,6 +7,7 @@
   <p class="muted">Hosts only. Guests RSVP through their invitation link and never need an account.</p>
 
   <form method="post" class="card signin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Email
       <input name="email" type="email" value="{{ email }}" required autofocus autocomplete="username">
     </label>

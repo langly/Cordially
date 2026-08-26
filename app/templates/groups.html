@@ -7,6 +7,7 @@
 <section class="card">
   <h2>Add a family or group</h2>
   <form method="post" action="{{ url_for('web.create_group') }}" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Name
       <input name="name" required placeholder="The Smith Family">
     </label>
@@ -50,6 +51,7 @@
           <td class="right">
             <form method="post" action="{{ url_for('web.delete_group', group_id=group.id) }}"
                   onsubmit="return confirm('Delete {{ group.name }} and its {{ group.size }} member(s)?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-danger" type="submit">Delete</button>
             </form>
           </td>

@@ -7,6 +7,7 @@ them without creating circular imports.
 from __future__ import annotations
 
 from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
@@ -48,3 +49,6 @@ def _load_user(user_id: str):
     from app.models import User
 
     return db.session.get(User, int(user_id))
+
+
+csrf = CSRFProtect()

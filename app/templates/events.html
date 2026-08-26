@@ -16,6 +16,7 @@
 <section class="card">
   <h2>Create an event</h2>
   <form method="post" action="{{ url_for('web.create_event') }}" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Name
       <input name="name" required placeholder="Summer BBQ">
     </label>
@@ -67,6 +68,7 @@
           <td class="right">
             <form method="post" action="{{ url_for('web.delete_event', event_id=event.id) }}"
                   onsubmit="return confirm('Delete {{ event.name }}?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-danger" type="submit">Delete</button>
             </form>
           </td>

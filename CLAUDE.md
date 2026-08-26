@@ -178,6 +178,19 @@ declared both on the relationship and as `ondelete=` on the FK.
   default `SECRET_KEY` or a cost-factor-1 hash; `FLASK_DEBUG=1` or TESTING
   downgrades to a warning. Called first in `create_app`.
 
+## Security invariants
+
+- **CSRF (Flask-WTF `CSRFProtect`)** guards all cookie-authenticated browser
+  forms (web/auth/admin). Every such `<form method="post">` must include
+  `{{ csrf_token() }}`. The JSON API (`api_bp`) and the public invite blueprint
+  (`invite_bp`) are `csrf.exempt` — the API relies on JSON-preflight and the
+  invite forms are token-authenticated for anonymous guests. A new
+  browser-facing form needs a token; a new API blueprint follows the exemption.
+- **Cookies** are `Secure` + `SameSite=Lax` + `HttpOnly` in production;
+  `_harden_cookies` relaxes `Secure` under `FLASK_DEBUG` so local http dev works.
+  `TestConfig` disables both `WTF_CSRF_ENABLED` and Secure so the test client
+  functions; `test_security_hardening.py` re-enables CSRF to prove enforcement.
+
 ## Notes
 
 - **Password hashing** picks scrypt when `hashlib` provides it and PBKDF2

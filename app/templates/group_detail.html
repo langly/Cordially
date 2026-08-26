@@ -21,6 +21,7 @@
 <section class="card">
   <h2>Add a member</h2>
   <form method="post" action="{{ url_for('web.add_member', group_id=group.id) }}" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>First name
       <input name="first_name" required>
     </label>
@@ -63,6 +64,7 @@
           <td class="muted">{{ member.dietary_notes or '—' }}</td>
           <td>
             <form method="post" action="{{ url_for('web.move_member', member_id=member.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <select name="group_id">
                 <option value="">— no group —</option>
                 {% for g in all_groups %}
@@ -75,6 +77,7 @@
           <td class="right">
             <form method="post" action="{{ url_for('web.delete_member', member_id=member.id) }}"
                   onsubmit="return confirm('Remove {{ member.full_name }}?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-danger" type="submit">Remove</button>
             </form>
           </td>

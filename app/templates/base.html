@@ -19,6 +19,7 @@
         {% endif %}
       </nav>
       <form method="post" action="{{ url_for('auth.logout') }}" class="inline signout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <span class="muted">{{ current_user.display_name }}</span>
         <button class="btn btn-sm" type="submit">Sign out</button>
       </form>

@@ -10,7 +10,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from app.config import get_config
-from app.extensions import db, login_manager, migrate
+from app.extensions import csrf, db, login_manager, migrate
 
 load_dotenv()
 
@@ -81,6 +81,18 @@ class _ForwardedPrefix:
             if path == prefix or path.startswith(prefix + "/"):
                 environ["PATH_INFO"] = path[len(prefix):] or "/"
         return self.app(environ, start_response)
+
+
+def _harden_cookies(app: Flask) -> None:
+    """Relax Secure cookies only for local development.
+
+    Production defaults (set in Config) mark cookies Secure; that would drop the
+    session over plain http, so ``flask run`` for local dev turns it back off.
+    """
+    is_debug = app.debug or os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes"}
+    if is_debug:
+        app.config["SESSION_COOKIE_SECURE"] = False
+        app.config["REMEMBER_COOKIE_SECURE"] = False
 
 
 def _install_proxy_fix(app: Flask) -> None:
@@ -168,6 +180,7 @@ def create_app(config_name: str | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    csrf.init_app(app)
 
     # Imported for their side effect of registering with the metadata, so that
     # create_all() and Alembic autogenerate can see every table.
@@ -185,9 +198,18 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(invite_bp)
     app.register_blueprint(web_bp)
 
+    # The JSON API is exempt: cross-origin JSON POSTs trigger a CORS preflight
+    # the attacker's page cannot satisfy, and it serves programmatic clients.
+    # The invite blueprint is exempt: guests are unauthenticated and the URL
+    # token is the credential. CSRF thus guards exactly the cookie-authenticated
+    # browser forms (web / auth / admin), which are the vulnerable surface.
+    csrf.exempt(api_bp)
+    csrf.exempt(invite_bp)
+
     _install_auth_guard(app)
     _install_request_logging(app)
     _install_proxy_fix(app)
+    _harden_cookies(app)
 
     from app.cli import register_cli
 

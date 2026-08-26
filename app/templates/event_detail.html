@@ -54,6 +54,7 @@
           <form method="post"
                 action="{{ url_for('web.remove_co_host', event_id=event.id, user_id=host.id) }}"
                 onsubmit="return confirm('Remove {{ host.display_name }} as a co-host?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="linkbtn" type="submit" title="Remove co-host">&times;</button>
           </form>
         {% endif %}
@@ -66,6 +67,7 @@
 
   {% if host_candidates %}
     <form method="post" action="{{ url_for('web.add_co_host', event_id=event.id) }}" class="inline" style="margin-top:0.75rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="user_id" required>
         <option value="">Add a co-host…</option>
         {% for user in host_candidates %}
@@ -79,6 +81,7 @@
   {% if can_transfer and event.co_hosts %}
     <form method="post" class="inline" style="margin-top:0.5rem"
           onsubmit="return confirm('Hand this event over? You stay a co-host only if re-added.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <span class="muted">Transfer ownership to:</span>
       {% for host in event.co_hosts %}
         <button class="btn btn-sm" type="submit"
@@ -98,6 +101,7 @@
   <details class="appearance" {{ 'open' if request.args.get('appearance') }}>
     <summary>Change the theme or layout</summary>
     <form method="post" action="{{ url_for('web.set_appearance', event_id=event.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <h3 class="picker-heading">Theme</h3>
       {{ appearance.theme_grid(theme_groups, default_theme) }}
 
@@ -123,6 +127,7 @@
   <h2>Invite</h2>
   <div class="two-up">
     <form method="post" action="{{ url_for('web.invite', event_id=event.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="group_id" required>
         <option value="">Invite a whole family or group…</option>
         {% for group in groups %}
@@ -136,6 +141,7 @@
     </form>
 
     <form method="post" action="{{ url_for('web.invite', event_id=event.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="member_id" required>
         <option value="">Invite one person…</option>
         {% for member in uninvited %}
@@ -154,6 +160,7 @@
     <h2>Guest list</h2>
     {% if summary %}
       <form method="post" action="{{ url_for('web.create_all_links', event_id=event.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn" type="submit">Create links for all groups</button>
       </form>
     {% endif %}
@@ -184,6 +191,7 @@
 
           {% if bucket.group_id %}
             <form method="post" action="{{ url_for('web.rsvp', event_id=event.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="group_id" value="{{ bucket.group_id }}">
               <span class="muted">Answer for everyone:</span>
               {% for status in statuses %}
@@ -204,16 +212,19 @@
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action='rotate') }}"
                     onsubmit="return confirm('Issue a new link? The link already shared with {{ bucket.group_name }} will stop working.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm" type="submit">New link</button>
               </form>
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action=('open' if link.restricted else 'restrict')) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm" type="submit">
                   {{ 'Allow extra guests' if link.restricted else 'Restrict to named' }}
                 </button>
               </form>
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action='revoke') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm btn-danger" type="submit">Revoke</button>
               </form>
               <span class="muted linkmeta">
@@ -229,11 +240,13 @@
               <span class="muted">Invitation link revoked.</span>
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action='restore') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm" type="submit">Reactivate</button>
               </form>
             {% else %}
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action='create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm btn-primary" type="submit">Create invitation link</button>
               </form>
             {% endif %}
@@ -268,6 +281,7 @@
               </td>
               <td>
                 <form method="post" action="{{ url_for('web.rsvp', event_id=event.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="member_id" value="{{ inv.member_id }}">
                   {% for status in statuses %}
                     <button class="btn btn-sm btn-{{ status }} {{ 'is-active' if inv.rsvp == status }}"
@@ -278,6 +292,7 @@
               <td class="muted">{{ inv.member.dietary_notes or '—' }}</td>
               <td class="right">
                 <form method="post" action="{{ url_for('web.remove_invitation', invitation_id=inv.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn btn-danger btn-sm" type="submit">Remove</button>
                 </form>
               </td>
