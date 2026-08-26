@@ -53,17 +53,27 @@ def init_logging(app: Flask) -> None:
     # create_app() would litter the tree, so the file handler is skipped there.
     if not app.config.get("TESTING"):
         log_dir = Path(app.config.get("LOG_DIR") or os.environ.get("LOG_DIR") or BASE_DIR / "logs")
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        file_handler = RotatingFileHandler(
-            log_dir / "events.log",
-            maxBytes=int(os.environ.get("LOG_MAX_BYTES", 10 * 1024 * 1024)),
-            backupCount=int(os.environ.get("LOG_BACKUPS", 5)),
-            encoding="utf-8",
-        )
-        file_handler.setFormatter(formatter)
-        file_handler._events_handler = True
-        root.addHandler(file_handler)
+        # A logging destination that can't be written must never take the app
+        # down -- stdout is already attached and journald/containers capture it,
+        # so on any filesystem error we warn there and carry on without the file.
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                log_dir / "events.log",
+                maxBytes=int(os.environ.get("LOG_MAX_BYTES", 10 * 1024 * 1024)),
+                backupCount=int(os.environ.get("LOG_BACKUPS", 5)),
+                encoding="utf-8",
+            )
+            file_handler.setFormatter(formatter)
+            file_handler._events_handler = True
+            root.addHandler(file_handler)
+        except OSError as err:
+            logging.getLogger("events.startup").warning(
+                "File logging disabled: cannot write to %s (%s). "
+                "Logging to stdout only. Point LOG_DIR at a writable directory, "
+                "or grant the service user access (see nginx.md, LogsDirectory).",
+                log_dir, err,
+            )
 
     # The Flask dev server's access log would duplicate our request log, and
     # SQLAlchemy echo is controlled separately -- keep both quiet here.

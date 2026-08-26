@@ -200,7 +200,7 @@
                      aria-label="Invitation link for {{ bucket.group_name }}"
                      onclick="this.select()">
               <button class="btn btn-sm" type="button" data-copy="{{ link.url() }}">Copy</button>
-              <a class="btn btn-sm" href="{{ link.path() }}" target="_blank" rel="noopener">Preview</a>
+              <a class="btn btn-sm" href="{{ url_for('invite.card', token=link.token) }}" target="_blank" rel="noopener">Preview</a>
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action='rotate') }}"
                     onsubmit="return confirm('Issue a new link? The link already shared with {{ bucket.group_name }} will stop working.');">

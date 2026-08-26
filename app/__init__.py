@@ -57,6 +57,27 @@ def _install_auth_guard(app: Flask) -> None:
         return redirect(url_for("auth.login", next=target))
 
 
+def _install_proxy_fix(app: Flask) -> None:
+    """Trust proxy headers when explicitly configured to sit behind one.
+
+    ``x_prefix`` is the piece that makes the app mount-point agnostic: nginx
+    sends ``X-Forwarded-Prefix: /e`` and every generated URL picks it up, so the
+    same code serves at ``/``, ``/e`` or any depth without edits. Off by default
+    so a directly-exposed app never trusts spoofable headers.
+    """
+    # Config captures the env at import; also read it here so a deploy can set
+    # PROXY_FIX_HOPS in the process environment without a config change.
+    hops = app.config.get("PROXY_FIX_HOPS") or int(os.environ.get("PROXY_FIX_HOPS", "0"))
+    if hops <= 0:
+        return
+
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops, x_prefix=hops
+    )
+
+
 def _install_request_logging(app: Flask) -> None:
     """Log one line per request, and any unhandled error with a traceback."""
     import logging
@@ -139,6 +160,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     _install_auth_guard(app)
     _install_request_logging(app)
+    _install_proxy_fix(app)
 
     from app.cli import register_cli
 

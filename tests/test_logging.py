@@ -115,3 +115,32 @@ def _audit_line(caplog, event: str) -> str:
         if record.name == "events.audit" and record.message.startswith(event + " "):
             return record.message
     raise AssertionError(f"no audit line for {event!r} in {[r.message for r in caplog.records]}")
+
+
+def test_unwritable_log_dir_does_not_crash_the_app(tmp_path, caplog):
+    """A logging destination problem must degrade to stdout, never abort boot."""
+    import logging as _logging
+    from logging.handlers import RotatingFileHandler
+
+    from flask import Flask
+
+    from app.logging_config import init_logging
+
+    # A path that cannot be created: a file stands where a directory should be.
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x")
+
+    app = Flask(__name__)
+    app.config["LOG_DIR"] = str(blocker / "logs")
+
+    root = _logging.getLogger()
+    saved = root.handlers[:]
+    root.handlers = [h for h in saved if not getattr(h, "_events_handler", False)]
+    try:
+        with caplog.at_level(_logging.WARNING, logger="events.startup"):
+            init_logging(app)  # must not raise
+        assert not any(isinstance(h, RotatingFileHandler) for h in root.handlers)
+        assert any("File logging disabled" in r.message for r in caplog.records)
+    finally:
+        # Leave the shared root logger as we found it for other tests.
+        root.handlers = saved

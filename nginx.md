@@ -107,28 +107,27 @@ lines are not optional if you care about the audit log being accurate.
 
 ## 3. App-side settings this proxy assumes
 
-Two things must be right on the **application** side for a TLS proxy deployment,
-because the app does not currently auto-detect the proxy:
+1. **`PROXY_FIX_HOPS=1` — set this behind NGINX.** It tells the app one trusted
+   proxy sits in front, enabling it to honour `X-Forwarded-Proto/Host/For`
+   (and `X-Forwarded-Prefix`, see [§3a](#3a-serving-under-a-sub-path-eg-e)).
+   Without it the app ignores those headers by design, so it would build
+   `http://` links and log NGINX's IP instead of the client's. This is the
+   single most important app-side setting behind a proxy.
 
-1. **`INVITE_BASE_URL` — set this.** Shareable invite links are built with the
-   public base URL. When `INVITE_BASE_URL` is set, links are correct; when it is
-   unset the app falls back to Flask's own URL building, which behind a
-   TLS-terminating proxy can emit `http://` or the internal host. Set it to the
-   public origin:
+2. **`INVITE_BASE_URL` — optional once `PROXY_FIX_HOPS` is set.** With the proxy
+   trusted, shareable invite links are already built with the correct
+   `https://host[/prefix]`. Set `INVITE_BASE_URL` only to pin a specific public
+   origin (e.g. a canonical domain different from the forwarded host):
 
    ```bash
    export INVITE_BASE_URL="https://party.example.com"
    ```
 
-2. **Secure cookies — recommended, not yet wired.** The session cookie that
-   holds the login is not currently marked `Secure`/`HttpOnly`/`SameSite`. Over
-   HTTPS you want it marked `Secure` so it is never sent in cleartext. This
-   needs a small `app/config.py` change (`SESSION_COOKIE_SECURE = True`, etc.)
-   and, to make `request.scheme` reflect the `X-Forwarded-Proto` header,
-   Werkzeug's `ProxyFix` middleware in `wsgi.py`. Ask and I will add both — they
-   are a few lines. Until then, setting `INVITE_BASE_URL` covers the
-   externally-visible URLs, and the audit IP works because it reads
-   `X-Forwarded-For` directly.
+3. **Secure cookies — optional hardening, not yet wired.** The session cookie is
+   not marked `Secure`/`HttpOnly`/`SameSite`. Over HTTPS you may want `Secure`
+   so it is never sent in cleartext; that is a small `app/config.py` change
+   (`SESSION_COOKIE_SECURE = True`, etc.). `PROXY_FIX_HOPS` already makes
+   `request.scheme` reflect `X-Forwarded-Proto`, so the groundwork is there.
 
 The public invitation cards live under `/i/<token>` and are intentionally
 unauthenticated — guests RSVP without logging in. NGINX should **not** put
@@ -136,6 +135,59 @@ unauthenticated — guests RSVP without logging in. NGINX should **not** put
 reachable.
 
 ---
+
+## 3a. Serving under a sub-path (e.g. `/e`)
+
+The app is **mount-point agnostic**: it runs at `/` by default, but can live
+under any prefix — `/e`, `/cordially`, `/apps/rsvp`, any depth — with only
+config, no code changes. Two pieces cooperate:
+
+1. **NGINX strips the prefix and announces it.** Use matching trailing slashes
+   so the prefix is removed before the app sees the path, and send it as
+   `X-Forwarded-Prefix`:
+
+   ```nginx
+   location = /e { return 301 /e/; }        # bare /e → /e/
+
+   location /e/static/ {                      # most-specific: served from disk
+       alias /var/www/cordially/app/static/;
+       access_log off; expires 30d;
+       add_header Cache-Control "public";
+   }
+
+   location /e/ {
+       proxy_pass http://events_upstream/;    # trailing slash strips /e/
+       proxy_set_header X-Forwarded-Prefix /e;   # ← the prefix (no trailing slash)
+       proxy_set_header Host              $host;
+       proxy_set_header X-Real-IP         $remote_addr;
+       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+       proxy_set_header X-Forwarded-Host  $host;
+   }
+   ```
+
+   The trailing slash on **both** `location /e/` and `proxy_pass …/` is what
+   rewrites `/e/events` → `/events`. Swap `/e` for whatever prefix you want.
+
+2. **The app trusts the header** — set `PROXY_FIX_HOPS` to the number of
+   proxies (1 for a single NGINX). This enables `ProxyFix`, which turns
+   `X-Forwarded-Prefix` into the app's mount point so every generated URL —
+   navigation, redirects, static assets, the post-login bounce, invite links —
+   carries the prefix automatically:
+
+   ```
+   PROXY_FIX_HOPS=1
+   ```
+
+   Left at its default of `0`, the app ignores all `X-Forwarded-*` headers (a
+   directly-exposed app must not trust spoofable headers). So this is required,
+   not optional, behind a proxy — and it also gives you correct `https` links
+   and real client IPs in the audit log.
+
+Nothing else changes: the same image serves at root, at `/e`, or on a dedicated
+subdomain, chosen entirely by `PROXY_FIX_HOPS` + what NGINX forwards. A subdomain
+at `/` (no prefix) is the simplest of all — set `PROXY_FIX_HOPS=1` for correct
+scheme/IP and skip the prefix machinery.
 
 ## 4. Recommended hardening
 
@@ -217,9 +269,14 @@ WorkingDirectory=/srv/events
 Environment="SECRET_KEY=your-real-random-secret"
 Environment="DATABASE_URL=postgresql+psycopg://events_app:pw@localhost:5432/events"
 Environment="INVITE_BASE_URL=https://party.example.com"
+Environment="PROXY_FIX_HOPS=1"
 Environment="LOG_DIR=/var/log/events"
-# Create the socket directory with the right owner.
+# systemd creates and owns both directories (service User/Group, before start):
+#   RuntimeDirectory -> /run/events   (the gunicorn socket)
+#   LogsDirectory    -> /var/log/events (events.log)
+# This is why the app never needs permission to mkdir under /var/log itself.
 RuntimeDirectory=events
+LogsDirectory=events
 ExecStart=/srv/events/.venv/bin/gunicorn --workers 3 \
           --bind unix:/run/events/gunicorn.sock wsgi:app
 Restart=on-failure
@@ -228,9 +285,16 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-`RuntimeDirectory=events` makes systemd create and own `/run/events`, where the
-socket lives. Add the `www-data` (NGINX) user to the `events` group, or set the
-socket's permissions, so NGINX can connect to it.
+`RuntimeDirectory=events` and `LogsDirectory=events` make systemd create and
+own `/run/events` (the socket) and `/var/log/events` (the log file) before the
+service starts, both with the service's `User`/`Group`. This is the clean fix
+for a *permission denied* on the log directory: the app should not be creating
+directories under `/var/log` itself, and with `LogsDirectory` it never tries to
+— systemd has already made a writable one. The directories persist across
+reboots and are recreated if deleted.
+
+Add the `www-data` (NGINX) user to the `events` group, or set the socket's
+permissions, so NGINX can connect to the socket.
 
 ```bash
 sudo systemctl daemon-reload

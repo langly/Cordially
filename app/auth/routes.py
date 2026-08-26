@@ -13,17 +13,19 @@ from app.services import users as users_svc
 
 
 def _safe_next(target: str | None) -> str:
-    """Only follow same-site relative redirects.
+    """Only follow same-site relative redirects, keeping the mount prefix.
 
     ``next`` comes from the query string, so an absolute URL here would turn the
-    login form into an open redirect.
+    login form into an open redirect -- reject anything with a scheme/host. The
+    stored value is app-relative (no SCRIPT_NAME), so prepend ``script_root`` to
+    survive a sub-path mount (``/e``); at root ``script_root`` is empty.
     """
     if not target:
         return url_for("web.index")
     parsed = urlparse(target)
     if parsed.scheme or parsed.netloc or not target.startswith("/"):
         return url_for("web.index")
-    return target
+    return request.script_root + target
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])

@@ -33,6 +33,14 @@ class Config:
     # production so links generated behind a proxy point at the public host.
     INVITE_BASE_URL = os.environ.get("INVITE_BASE_URL")
 
+    # Number of trusted reverse proxies in front of the app. 0 (default) means
+    # "not behind a proxy" -- X-Forwarded-* headers are ignored, because a
+    # direct client could otherwise spoof them. Set to 1 behind a single nginx.
+    # When > 0, the app honours X-Forwarded-Proto/Host/For and, crucially,
+    # X-Forwarded-Prefix -- which is what lets it be mounted under any sub-path
+    # (/e, /cordially, …) with only nginx config, no code changes.
+    PROXY_FIX_HOPS = int(os.environ.get("PROXY_FIX_HOPS", "0"))
+
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", DEFAULT_SQLITE_URL)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = os.environ.get("SQL_ECHO", "").lower() in {"1", "true", "yes"}
