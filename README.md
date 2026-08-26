@@ -1,6 +1,6 @@
-# Events
+# Cordially
 
-A party / event manager built on Flask + SQLAlchemy. You create **families and
+Cordially is a party / event manager built on Flask + SQLAlchemy. You create **families and
 groups**, add **members** to them, then invite whole families to an **event**
 and track RSVPs per person with a per-family rollup.
 

@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Events{% endblock %}</title>
+  <title>{% block title %}Cordially{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="{{ url_for('web.index') }}">Events</a>
+    <a class="brand" href="{{ url_for('web.index') }}">Cordially</a>
     {% if current_user.is_authenticated %}
       <nav>
         <a href="{{ url_for('web.events') }}">Events</a>
