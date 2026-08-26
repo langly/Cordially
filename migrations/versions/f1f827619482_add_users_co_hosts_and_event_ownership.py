@@ -25,8 +25,8 @@ def upgrade():
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('name', sa.String(length=120), nullable=True),
     sa.Column('password_hash', sa.String(length=255), nullable=False),
-    sa.Column('is_admin', sa.Boolean(), server_default=sa.text('0'), nullable=False),
-    sa.Column('is_active', sa.Boolean(), server_default=sa.text('1'), nullable=False),
+    sa.Column('is_admin', sa.Boolean(), server_default=sa.false(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.true(), nullable=False),
     sa.Column('created_at', app.models.types.UtcDateTime(timezone=True), nullable=False),
     sa.Column('updated_at', app.models.types.UtcDateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_users'))
