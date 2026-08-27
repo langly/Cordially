@@ -17,6 +17,7 @@ from app.services import events as events_svc
 from app.services import groups as groups_svc
 from app.services import invitations as invites_svc
 from app.services import invite_links as links_svc
+from app.services import mail as mail_svc
 from app.services import members as members_svc
 from app.services import users as users_svc
 
@@ -347,3 +348,25 @@ def remove_co_host(event_id: int, user_id: int):
     events_svc.remove_co_host(event, removed)
     audit("event.cohost.remove", event=event.id, target=removed.email)
     return "", 204
+
+
+# --- Email invitations ------------------------------------------------------
+
+@api_bp.post("/events/<int:event_id>/email")
+def email_invitations(event_id: int):
+    """Queue invitation emails for one group (``group_id``) or all groups."""
+    event = event_or_403(event_id)
+    if not mail_svc.is_enabled():
+        return jsonify({"error": "Email is disabled on this server"}), 503
+    data = request.get_json(silent=True) or {}
+
+    if data.get("group_id"):
+        link = links_svc.get_link(event.id, int(data["group_id"]))
+        if link is None:
+            return jsonify({"error": "No invitation link for that group"}), 404
+        results = [mail_svc.email_invitation(link)]
+    else:
+        results = [mail_svc.email_invitation(link) for link in links_svc.links_for_event(event.id)]
+
+    queued = sum(r["enqueued"] for r in results)
+    return jsonify({"queued": queued, "groups": results}), 202

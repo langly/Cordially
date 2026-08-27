@@ -163,6 +163,12 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn" type="submit">Create links for all groups</button>
       </form>
+      {% if mail_enabled %}
+      <form method="post" action="{{ url_for('web.email_all_invitations', event_id=event.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Email all invitations</button>
+      </form>
+      {% endif %}
     {% endif %}
   </div>
   {% if summary %}
@@ -209,6 +215,14 @@
                      onclick="this.select()">
               <button class="btn btn-sm" type="button" data-copy="{{ link.url() }}">Copy</button>
               <a class="btn btn-sm" href="{{ url_for('invite.card', token=link.token) }}" target="_blank" rel="noopener">Preview</a>
+              {% if mail_enabled %}
+              <form method="post" class="inline"
+                    action="{{ url_for('web.email_group_invitation', event_id=event.id, group_id=bucket.group_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm" type="submit">{{ 'Re-email' if link.id in emailed_link_ids else 'Email' }}</button>
+              </form>
+              {% if link.id in emailed_link_ids %}<span class="muted linkmeta">emailed</span>{% endif %}
+              {% endif %}
               <form method="post" class="inline"
                     action="{{ url_for('web.manage_link', event_id=event.id, group_id=bucket.group_id, action='rotate') }}"
                     onsubmit="return confirm('Issue a new link? The link already shared with {{ bucket.group_name }} will stop working.');">

@@ -53,6 +53,25 @@ class Config:
     # production so links generated behind a proxy point at the public host.
     INVITE_BASE_URL = os.environ.get("INVITE_BASE_URL")
 
+    # --- Email -------------------------------------------------------------
+    # Backend: "console" logs the message (dev default, sends nothing), "smtp"
+    # sends for real, "memory" captures in-process (tests). Swappable like the
+    # database, so dev needs no mail server.
+    # Hard opt-out. When False, the app never queues or sends any email,
+    # regardless of MAIL_BACKEND -- an operator-level guarantee.
+    MAIL_ENABLED = _env_bool("MAIL_ENABLED", True)
+    MAIL_BACKEND = os.environ.get("MAIL_BACKEND", "console")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "Cordially <no-reply@localhost>")
+    MAIL_MAX_ATTEMPTS = int(os.environ.get("MAIL_MAX_ATTEMPTS", "3"))
+
+    MAIL_SMTP_HOST = os.environ.get("MAIL_SMTP_HOST", "localhost")
+    MAIL_SMTP_PORT = int(os.environ.get("MAIL_SMTP_PORT", "587"))
+    MAIL_SMTP_USERNAME = os.environ.get("MAIL_SMTP_USERNAME")
+    MAIL_SMTP_PASSWORD = os.environ.get("MAIL_SMTP_PASSWORD")
+    MAIL_SMTP_USE_TLS = _env_bool("MAIL_SMTP_USE_TLS", True)   # STARTTLS on 587
+    MAIL_SMTP_USE_SSL = _env_bool("MAIL_SMTP_USE_SSL", False)  # implicit TLS on 465
+    MAIL_SMTP_TIMEOUT = int(os.environ.get("MAIL_SMTP_TIMEOUT", "30"))
+
     # Number of trusted reverse proxies in front of the app. 0 (default) means
     # "not behind a proxy" -- X-Forwarded-* headers are ignored, because a
     # direct client could otherwise spoof them. Set to 1 behind a single nginx.
@@ -76,6 +95,7 @@ class TestConfig(Config):
     TESTING = True
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
+    MAIL_BACKEND = "memory"
     # One PBKDF2 round: the suite creates many accounts and is not testing the
     # KDF's cost factor. Never used outside tests.
     PASSWORD_HASH_METHOD = "pbkdf2:sha256:1"

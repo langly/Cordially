@@ -116,6 +116,44 @@ def register_cli(app: Flask) -> None:
         db.session.commit()
         click.echo(f"Assigned {len(orphans)} event(s) to {user.email}")
 
+    @app.cli.command("send-pending-mail")
+    @click.option("--limit", default=100, show_default=True, help="Max messages to send.")
+    def send_pending_mail(limit: int):
+        """Send queued emails. Run from cron or a systemd timer."""
+        from app.services import mail as mail_svc
+
+        if not mail_svc.is_enabled():
+            click.echo("Email is disabled (MAIL_ENABLED=0); nothing sent.")
+            return
+        pending = mail_svc.pending_count()
+        if not pending:
+            click.echo("No pending email.")
+            return
+        result = mail_svc.flush(limit=limit)
+        click.echo(f"Sent {result['sent']}, failed {result['failed']} "
+                   f"(of {pending} pending, backend={app.config['MAIL_BACKEND']}).")
+
+    @app.cli.command("mail-status")
+    def mail_status():
+        """Show outbox counts by status."""
+        from sqlalchemy import func, select
+
+        from app.models import EmailMessage
+
+        rows = db.session.execute(
+            select(EmailMessage.status, func.count(EmailMessage.id)).group_by(EmailMessage.status)
+        ).all()
+        counts = {status: n for status, n in rows}
+        for status in ("pending", "sent", "failed"):
+            click.echo(f"  {status:8} {counts.get(status, 0)}")
+
+    @app.cli.command("retry-failed-mail")
+    def retry_failed_mail():
+        """Requeue permanently-failed emails (after fixing SMTP config)."""
+        from app.services import mail as mail_svc
+
+        click.echo(f"Requeued {mail_svc.retry_failed()} message(s).")
+
     @app.cli.command("db-info")
     def db_info():
         """Show which database this app is talking to."""

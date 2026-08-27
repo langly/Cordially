@@ -303,6 +303,74 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
+## 7. Sending email (systemd timer)
+
+Email uses a **transactional outbox**: the app queues messages in the database
+and a separate command sends them. Run that command on a timer so the queue
+drains automatically.
+
+Set `MAIL_BACKEND=smtp` and the `MAIL_SMTP_*` / `MAIL_DEFAULT_SENDER` variables
+(see `.env.example`) in the service environment, then add a oneshot service and
+a timer:
+
+`/etc/systemd/system/cordially-mail.service`:
+
+```ini
+[Unit]
+Description=Cordially — flush the email outbox
+After=network.target
+
+[Service]
+Type=oneshot
+User=events
+Group=www-data
+WorkingDirectory=/srv/events
+Environment="FLASK_APP=wsgi"
+Environment="SECRET_KEY=your-real-random-secret"
+Environment="DATABASE_URL=postgresql+psycopg://events_app:pw@localhost:5432/events"
+Environment="INVITE_BASE_URL=https://party.example.com"
+Environment="MAIL_BACKEND=smtp"
+Environment="MAIL_DEFAULT_SENDER=Cordially <no-reply@party.example.com>"
+Environment="MAIL_SMTP_HOST=smtp.example.com"
+Environment="MAIL_SMTP_PORT=587"
+Environment="MAIL_SMTP_USERNAME=apikey"
+Environment="MAIL_SMTP_PASSWORD=secret"
+ExecStart=/srv/events/.venv/bin/flask send-pending-mail
+```
+
+`/etc/systemd/system/cordially-mail.timer`:
+
+```ini
+[Unit]
+Description=Flush Cordially email queue every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now cordially-mail.timer
+systemctl list-timers cordially-mail.timer     # confirm it's scheduled
+```
+
+`send-pending-mail` is safe to run concurrently-ish and often: it commits each
+message as it sends, so an overlap or crash never re-sends a delivered message.
+`flask mail-status` shows queue counts; `flask retry-failed-mail` requeues
+permanently-failed messages after you fix SMTP settings.
+
+`INVITE_BASE_URL` must be set here — the timer has no web request to derive the
+public URL from, and invitation emails embed an absolute invite link.
+
+Keeping this to `MAIL_BACKEND=console` (or omitting the timer) is fine for a
+deployment that does not send email yet — the app queues nothing until you use
+an email feature, and console simply logs.
+
 ## Checklist
 
 ```
@@ -315,6 +383,7 @@ sudo nginx -t && sudo systemctl reload nginx
 [ ] /i/<token> reachable without authentication (do not lock it down)
 [ ] nginx -t passes, service reloaded
 [ ] (recommended) rate limit on /login, HSTS, secure-cookie app settings
+[ ] (if sending email) MAIL_BACKEND=smtp + cordially-mail.timer enabled
 ```
 
 The only app-specific requirements are the forwarded headers, serving

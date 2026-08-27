@@ -182,6 +182,10 @@ def create_app(config_name: str | None = None) -> Flask:
     login_manager.init_app(app)
     csrf.init_app(app)
 
+    from app.email import init_mail
+
+    init_mail(app)
+
     # Imported for their side effect of registering with the metadata, so that
     # create_all() and Alembic autogenerate can see every table.
     from app import models  # noqa: F401

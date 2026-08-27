@@ -13,3 +13,6 @@ logs/
 *.sw[nop]
 .*.sw[nop]
 *~
+
+# Internal security notes — not for the repo
+/SECURITY_AUDIT.md

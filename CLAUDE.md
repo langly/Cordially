@@ -178,6 +178,20 @@ declared both on the relationship and as `ondelete=` on the FK.
   default `SECRET_KEY` or a cost-factor-1 hash; `FLASK_DEBUG=1` or TESTING
   downgrades to a warning. Called first in `create_app`.
 
+## Email (transactional outbox)
+
+`app/services/mail.py` + `app/models/email_message.py` + `app/email/`. Actions
+**enqueue** rows (body rendered and stored at enqueue time, so no request
+context is needed later); `flask send-pending-mail` **flushes** them via the
+`MAIL_BACKEND` backend (console/smtp/memory, selected in `app/email/__init__.py`
+and stashed on `app.extensions["mail_backend"]`). `flush()` commits per message,
+so a crash never re-sends. Rendering an invitation calls `link.url()`, which
+needs a request context or `INVITE_BASE_URL` — CLI/timer sends require the
+latter. **`MAIL_ENABLED=0` is a hard kill switch:** `enqueue`/`flush`/
+`email_invitation` no-op, `init_mail` installs a `DisabledBackend` that raises if
+`send` is ever reached, and routes hide the UI / return 503 — check
+`mail.is_enabled()` in any new email code path. Tests use the memory backend and set `INVITE_BASE_URL` per-module.
+
 ## Security invariants
 
 - **CSRF (Flask-WTF `CSRFProtect`)** guards all cookie-authenticated browser

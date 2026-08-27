@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app.audit import audit
@@ -25,6 +25,7 @@ from app.services import events as events_svc
 from app.services import groups as groups_svc
 from app.services import invitations as invites_svc
 from app.services import invite_links as links_svc
+from app.services import mail as mail_svc
 from app.services import members as members_svc
 from app.services import users as users_svc
 from app.preview_data import SAMPLE_GROUP, SAMPLE_LINK, SAMPLE_MEMBERS
@@ -201,6 +202,7 @@ def event_detail(event_id: int):
     event = event_or_403(event_id)
     invited_ids = {inv.member_id for inv in event.invitations}
     links = {link.group_id: link for link in links_svc.links_for_event(event.id)}
+    emailed_link_ids = mail_svc.sent_link_ids(event)
     return render_template(
         "event_detail.html",
         event=event,
@@ -210,6 +212,8 @@ def event_detail(event_id: int):
         uninvited=[m for m in members_svc.list_members() if m.id not in invited_ids],
         statuses=RsvpStatus.ALL,
         links=links,
+        emailed_link_ids=emailed_link_ids,
+        mail_enabled=mail_svc.is_enabled(),
         default_theme=event.card_theme,
         default_layout=event.card_layout,
         hosts=event.hosts(),
@@ -441,4 +445,51 @@ def transfer_ownership(event_id: int, user_id: int):
         flash(f"{user.display_name} now owns this event.", "success")
     except ValueError as err:
         flash(str(err), "error")
+    return redirect(url_for("web.event_detail", event_id=event.id))
+
+
+# --- Email invitations ------------------------------------------------------
+
+@web_bp.post("/events/<int:event_id>/email/<int:group_id>")
+def email_group_invitation(event_id: int, group_id: int):
+    event = event_or_403(event_id)
+    if not mail_svc.is_enabled():
+        flash("Email is disabled on this server.", "error")
+        return redirect(url_for("web.event_detail", event_id=event.id))
+    group = groups_svc.get_group_or_404(group_id)
+    link = links_svc.get_link(event.id, group.id)
+    if link is None:
+        flash("Create an invitation link for this group first.", "error")
+        return redirect(url_for("web.event_detail", event_id=event.id))
+
+    result = mail_svc.email_invitation(link)
+    if result["no_email"]:
+        flash(f"No email on file for {group.name} — add a contact email or member emails.", "error")
+    else:
+        flash(f"Queued invitation for {group.name} ({result['enqueued']} recipient(s)).", "success")
+    return redirect(url_for("web.event_detail", event_id=event.id))
+
+
+@web_bp.post("/events/<int:event_id>/email")
+def email_all_invitations(event_id: int):
+    event = event_or_403(event_id)
+    if not mail_svc.is_enabled():
+        flash("Email is disabled on this server.", "error")
+        return redirect(url_for("web.event_detail", event_id=event.id))
+    links = links_svc.links_for_event(event.id)
+    if not links:
+        flash("No invitation links yet — invite some groups first.", "error")
+        return redirect(url_for("web.event_detail", event_id=event.id))
+
+    queued = skipped = 0
+    for link in links:
+        result = mail_svc.email_invitation(link)
+        if result["no_email"]:
+            skipped += 1
+        else:
+            queued += result["enqueued"]
+    msg = f"Queued {queued} invitation email(s)."
+    if skipped:
+        msg += f" {skipped} group(s) had no email on file."
+    flash(msg, "success" if queued else "error")
     return redirect(url_for("web.event_detail", event_id=event.id))

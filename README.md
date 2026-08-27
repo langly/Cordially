@@ -312,6 +312,43 @@ curl -X POST localhost:5000/api/events/1/rsvp -H 'Content-Type: application/json
      -d '{"group_id": 1, "rsvp": "yes"}'
 ```
 
+## Email
+
+Cordially can email each invited group its invitation-card link. Sending uses a
+**transactional outbox**: actions queue messages in the `email_messages` table,
+and `flask send-pending-mail` delivers them — so slow/flaky SMTP stays out of
+the request path, sends are durable and retried, and there is an audit trail. No
+message-queue dependency.
+
+**Turning email off entirely.** Set `MAIL_ENABLED=0` and the server never queues
+or sends anything — regardless of `MAIL_BACKEND`. The email buttons disappear
+from the UI, the API returns `503`, and `flask send-pending-mail` reports that
+mail is disabled. This is the operator kill switch; leave `MAIL_BACKEND=console`
+if you instead want the machinery active but sending nothing (it logs).
+
+The backend is swappable by config, like the database:
+
+| `MAIL_BACKEND` | Behaviour |
+|---|---|
+| `console` (default) | Logs the email; sends nothing. Great for development. |
+| `smtp` | Real delivery. Set `MAIL_SMTP_*` and `MAIL_DEFAULT_SENDER`. |
+| `memory` | In-process capture (tests). |
+
+Trigger invitation emails from an event page — **Email** next to each group's
+link, or **Email all invitations** — or via `POST /api/events/<id>/email`. A
+group is emailed at its `contact_email`; with none set, each member who has an
+email address. Groups with no email are reported, not silently skipped.
+
+```bash
+flask send-pending-mail        # deliver the queue (run on a timer in prod)
+flask mail-status              # pending / sent / failed counts
+flask retry-failed-mail        # requeue failures after fixing SMTP
+```
+
+Set `INVITE_BASE_URL` when sending from the CLI/timer (no web request to derive
+the public origin from). See `nginx.md` for the systemd timer that drains the
+queue automatically.
+
 ## Commands
 
 | Command | Purpose |
@@ -320,6 +357,8 @@ curl -X POST localhost:5000/api/events/1/rsvp -H 'Content-Type: application/json
 | `flask db migrate -m "..."` | generate a migration after model changes |
 | `flask seed [--force]` | demo data: 3 groups, 7 members, 1 event |
 | `flask create-admin` | create a site administrator (prompts for a password) |
+| `flask send-pending-mail` | deliver queued email (`--limit`) |
+| `flask mail-status` / `retry-failed-mail` | outbox counts / requeue failures |
 | `flask claim-events --email …` | give unowned events to a user |
 | `flask db-info` | show the active dialect, driver and tables |
 | `flask init-db` | `create_all()` for a throwaway database |

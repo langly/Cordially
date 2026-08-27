@@ -1,0 +1,16 @@
+You're invited: {{ event.name }}
+{% if event.starts_at %}
+When:  {{ event.starts_at.strftime('%A, %-d %B %Y, %H:%M') }}{% endif %}{% if event.location %}
+Where: {{ event.location }}{% endif %}
+{% if event.description %}
+{{ event.description }}
+{% endif %}
+Hello {{ group.name }},
+
+Please let us know if you can make it. One reply covers everyone in your
+{{ 'family' if group.kind == 'family' else 'group' }}.
+
+View your invitation and RSVP:
+{{ invite_url }}
+
+Sent with Cordially

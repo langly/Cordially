@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0; padding:0; background:#f2efe9;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2efe9;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+             style="max-width:560px; background:#fffdf8; border:1px solid #e4dbc9; border-radius:4px;">
+        <tr><td style="height:6px; background:{{ theme.accent }};"></td></tr>
+        <tr><td style="padding:36px 40px 28px; font-family:Georgia,'Times New Roman',serif; color:#262119;">
+          <p style="margin:0 0 6px; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#6d6355; font-family:Arial,sans-serif;">You&rsquo;re invited</p>
+          <h1 style="margin:0 0 20px; font-size:28px; line-height:1.2; color:#262119;">{{ event.name }}</h1>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+            {% if event.starts_at %}
+            <tr><td style="padding:2px 0; font-size:15px; color:#262119;">
+              <strong>When:</strong> {{ event.starts_at.strftime('%A, %-d %B %Y, %H:%M') }}
+            </td></tr>
+            {% endif %}
+            {% if event.location %}
+            <tr><td style="padding:2px 0; font-size:15px; color:#262119;">
+              <strong>Where:</strong> {{ event.location }}
+            </td></tr>
+            {% endif %}
+          </table>
+
+          {% if event.description %}
+          <p style="margin:0 0 20px; font-size:15px; line-height:1.6; color:#3b352c; font-family:Arial,sans-serif;">{{ event.description }}</p>
+          {% endif %}
+
+          <p style="margin:0 0 8px; font-size:15px; color:#262119;">Hello {{ group.name }},</p>
+          <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#3b352c; font-family:Arial,sans-serif;">
+            Please let us know if you can make it. One reply covers everyone in your
+            {{ 'family' if group.kind == 'family' else 'group' }} &mdash; just open your invitation and respond.
+          </p>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 8px;">
+            <tr><td align="center" style="border-radius:4px; background:{{ theme.accent }};">
+              <a href="{{ invite_url }}" style="display:inline-block; padding:13px 28px; font-family:Arial,sans-serif; font-size:15px; font-weight:bold; color:#ffffff; text-decoration:none;">
+                View invitation &amp; RSVP
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:16px 0 0; font-size:12px; line-height:1.5; color:#8a8375; font-family:Arial,sans-serif; word-break:break-all;">
+            Or paste this link into your browser:<br>{{ invite_url }}
+          </p>
+        </td></tr>
+      </table>
+      <p style="margin:16px 0 0; font-size:11px; color:#a29a88; font-family:Arial,sans-serif;">Sent with Cordially</p>
+    </td></tr>
+  </table>
+</body>
+</html>
