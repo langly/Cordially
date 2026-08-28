@@ -17,7 +17,8 @@
       <input name="name" placeholder="optional">
     </label>
     <label>Password
-      <input name="password" type="password" required minlength="8" autocomplete="new-password">
+      <input name="password" type="password" minlength="8" autocomplete="new-password"
+             placeholder="blank = Google sign-in only">
     </label>
     <label class="checkbox">
       <input type="checkbox" name="is_admin" value="1"> Site admin
@@ -41,6 +42,8 @@
         <td>
           {% if user.is_admin %}<span class="pill">admin</span>{% else %}<span class="muted">host</span>{% endif %}
           {% if not user.is_active %}<span class="pill pill-open">deactivated</span>{% endif %}
+          {% if user.google_linked %}<span class="pill pill-soft">google</span>{% endif %}
+          {% if not user.has_password %}<span class="pill pill-soft">no password</span>{% endif %}
         </td>
         <td>{{ user.owned_events|length }}</td>
         <td>

@@ -56,7 +56,12 @@ class User(TimestampMixin, UserMixin, db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     name: Mapped[Optional[str]] = mapped_column(String(120))
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Google account subject id (stable, immutable). Set once a user links or
+    # first signs in with Google. Unique so two accounts can't share one Google
+    # identity.
+    google_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
 
     is_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
@@ -84,8 +89,16 @@ class User(TimestampMixin, UserMixin, db.Model):
 
     def check_password(self, password: str) -> bool:
         if not self.password_hash:
-            return False
+            return False  # a Google-only account has no password to check
         return check_password_hash(self.password_hash, password or "")
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self.password_hash)
+
+    @property
+    def google_linked(self) -> bool:
+        return bool(self.google_sub)
 
     # --- display -----------------------------------------------------------
 
@@ -101,6 +114,8 @@ class User(TimestampMixin, UserMixin, db.Model):
             "is_admin": self.is_admin,
             "is_active": self.is_active,
             "owned_events": len(self.owned_events),
+            "has_password": self.has_password,
+            "google_linked": self.google_linked,
         }
 
     def __repr__(self) -> str:

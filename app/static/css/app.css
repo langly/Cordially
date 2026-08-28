@@ -224,3 +224,7 @@ form.inline { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap
 .host-chip form { display: inline-flex; }
 .host-chip .linkbtn { background: none; border: none; color: var(--muted); cursor: pointer; font: inherit; padding: 0 0 0 0.1rem; line-height: 1; }
 .host-chip .linkbtn:hover { color: var(--no); }
+
+.or-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; color: var(--muted); font-size: 0.85rem; }
+.or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.btn-google { display: block; text-align: center; width: 100%; box-sizing: border-box; }

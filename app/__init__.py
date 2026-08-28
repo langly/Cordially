@@ -29,7 +29,9 @@ def _set_sqlite_pragmas(dbapi_connection, connection_record):
 
 # Endpoints reachable without a session. Everything else is denied by default,
 # so a newly added route is protected unless it is named here on purpose.
-PUBLIC_ENDPOINTS = frozenset({"auth.login", "static"})
+PUBLIC_ENDPOINTS = frozenset(
+    {"auth.login", "auth.google_login", "auth.google_callback", "static"}
+)
 
 # The whole invite blueprint is public: guests RSVP with a token, never a login.
 PUBLIC_BLUEPRINTS = frozenset({"invite"})
@@ -81,6 +83,30 @@ class _ForwardedPrefix:
             if path == prefix or path.startswith(prefix + "/"):
                 environ["PATH_INFO"] = path[len(prefix):] or "/"
         return self.app(environ, start_response)
+
+
+def _init_google_oauth(app: Flask) -> None:
+    """Register Google OIDC when configured.
+
+    A per-app OAuth object (stashed on ``app.extensions``) rather than a shared
+    module singleton, so multiple app instances (tests) don't collide on the
+    client registry. Absent config, Google login is simply off.
+    """
+    if not (app.config.get("GOOGLE_CLIENT_ID") and app.config.get("GOOGLE_CLIENT_SECRET")):
+        app.extensions["oauth"] = None
+        return
+
+    from authlib.integrations.flask_client import OAuth
+
+    oauth = OAuth(app)
+    oauth.register(
+        name="google",
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_id=app.config["GOOGLE_CLIENT_ID"],
+        client_secret=app.config["GOOGLE_CLIENT_SECRET"],
+        client_kwargs={"scope": "openid email profile"},
+    )
+    app.extensions["oauth"] = oauth
 
 
 def _harden_cookies(app: Flask) -> None:
@@ -185,6 +211,8 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.email import init_mail
 
     init_mail(app)
+
+    _init_google_oauth(app)
 
     # Imported for their side effect of registering with the metadata, so that
     # create_all() and Alembic autogenerate can see every table.

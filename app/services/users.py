@@ -28,6 +28,34 @@ def find_by_email(email: str) -> Optional[User]:
     return db.session.scalars(stmt).first()
 
 
+def find_by_google_sub(sub: str) -> Optional[User]:
+    if not sub:
+        return None
+    return db.session.scalars(select(User).where(User.google_sub == sub)).first()
+
+
+def login_with_google(sub: str, email: str, email_verified: bool) -> Optional[User]:
+    """Resolve a Google identity to a Cordially account -- match only.
+
+    Returns the user for an existing, active account, or None (no account is
+    ever created). Matches by the stable Google subject first; on first sign-in
+    it links by **verified** email to an existing account. An unverified email
+    is never trusted for linking -- that would allow account takeover.
+    """
+    user = find_by_google_sub(sub)
+
+    if user is None and email_verified and email:
+        candidate = find_by_email(email)
+        if candidate is not None:
+            candidate.google_sub = sub  # link on first Google sign-in
+            db.session.commit()
+            user = candidate
+
+    if user is None or not user.is_active:
+        return None
+    return user
+
+
 def admin_count() -> int:
     stmt = select(func.count(User.id)).where(User.is_admin.is_(True), User.is_active.is_(True))
     return db.session.scalar(stmt) or 0
@@ -67,11 +95,16 @@ _DUMMY_HASH: Optional[str] = None
 
 def create_user(
     email: str,
-    password: str,
+    password: Optional[str] = None,
     name: Optional[str] = None,
     is_admin: bool = False,
     is_active: bool = True,
 ) -> User:
+    """Create a host account.
+
+    ``password`` is optional: omit it for a Google-only account, which signs in
+    via Google (matched on this email) and has no password.
+    """
     email = (email or "").strip().lower()
     if not email or "@" not in email:
         raise ValueError("A valid email address is required")
@@ -84,7 +117,8 @@ def create_user(
         is_admin=bool(is_admin),
         is_active=bool(is_active),
     )
-    user.set_password(password)  # validates length before anything is written
+    if password:
+        user.set_password(password)  # validates length before anything is written
     db.session.add(user)
     db.session.commit()
     return user

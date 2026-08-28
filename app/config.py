@@ -33,6 +33,12 @@ DEFAULT_SECRET_KEY = "dev-secret-change-me"
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", DEFAULT_SECRET_KEY)
 
+    # Google sign-in (OpenID Connect). Set both to enable the "Sign in with
+    # Google" button; match-only -- it authenticates existing accounts, never
+    # creates them. Leave unset to keep password-only login.
+    GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+
     # Cookie hardening. Secure defaults to on (production over HTTPS); the app
     # factory turns it off for local http dev (FLASK_DEBUG). SameSite=Lax is the
     # second line of CSRF defence behind the CSRF tokens on forms.

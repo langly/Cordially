@@ -63,6 +63,25 @@ not access to the owner's other events. Ownership can be transferred.
 Families and groups are a **shared address book**: every signed-in host sees and
 edits all of them. Events are the private part.
 
+### Sign in with Google (optional)
+
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to add a "Sign in with Google"
+button beside the password form. It is **match-only**: Google proves *who*
+someone is, but only signs in an account that **already exists** — it never
+creates one. So it stays invite-only; an admin still provisions each host.
+
+- First Google sign-in links to the existing account by **verified** email and
+  stores the Google id; afterwards either password or Google works.
+- Admins can create a **Google-only** account by leaving the password blank —
+  the user signs in with Google (matched on their email) and never has a password.
+- Password login always remains, as a fallback and for accounts without Google.
+
+In Google Cloud Console, create an OAuth 2.0 Client (type: Web application) and
+add the redirect URI `https://your-host/auth/google/callback` (include your
+sub-path prefix if you use one). The redirect must be HTTPS and match exactly —
+behind nginx that means `PROXY_FIX_HOPS=1` so the app builds `https` URLs.
+Leaving the two variables unset keeps password-only login.
+
 Bootstrap the first login, then claim any events created before accounts existed:
 
 ```bash

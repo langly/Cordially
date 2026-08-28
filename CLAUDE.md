@@ -192,6 +192,19 @@ latter. **`MAIL_ENABLED=0` is a hard kill switch:** `enqueue`/`flush`/
 `send` is ever reached, and routes hide the UI / return 503 — check
 `mail.is_enabled()` in any new email code path. Tests use the memory backend and set `INVITE_BASE_URL` per-module.
 
+## Google sign-in (OIDC, match-only)
+
+`app/auth/routes.py` (`google_login`/`google_callback`) + `_init_google_oauth`
+in the factory + `users.login_with_google`. Enabled only when
+`GOOGLE_CLIENT_ID`/`SECRET` are set; a per-app Authlib `OAuth` is stashed on
+`app.extensions["oauth"]` (per-app, not a module singleton, so test apps don't
+collide). The two `/auth/google*` endpoints are in `PUBLIC_ENDPOINTS`. **Match
+only:** `login_with_google` resolves by stable `google_sub`, else links to an
+existing account by **verified** email (never on `email_verified=false` — that
+would be account takeover), and never creates a user. `User.password_hash` is
+nullable (Google-only accounts); `check_password` returns False without one.
+Google authenticates; the existing guard/roles still authorize.
+
 ## Security invariants
 
 - **CSRF (Flask-WTF `CSRFProtect`)** guards all cookie-authenticated browser
